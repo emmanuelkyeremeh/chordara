@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    
+    <!-- Viewport and Mobile Optimization -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4f46e5" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Chordara - AI Music Generator | Create Unique Songs with AI</title>
+    <meta name="title" content="Chordara - AI Music Generator | Create Unique Songs with AI" />
+    <meta name="description" content="Transform your ideas into music with Chordara's AI-powered music generator. Create unique songs in any style - electronic, rock, jazz, pop, and more. No musical experience required!" />
+    <meta name="keywords" content="AI music generator, music creation, artificial intelligence music, song generator, music composer, AI composer, music maker, electronic music, music production, creative AI" />
+    <meta name="author" content="Chordara" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://chordara.com/" />
+    <meta property="og:title" content="Chordara - AI Music Generator | Create Unique Songs with AI" />
+    <meta property="og:description" content="Transform your ideas into music with Chordara's AI-powered music generator. Create unique songs in any style - electronic, rock, jazz, pop, and more. No musical experience required!" />
+    <meta property="og:image" content="https://chordara.com/og-image.png" />
+    <meta property="og:site_name" content="Chordara" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://chordara.com/" />
+    <meta property="twitter:title" content="Chordara - AI Music Generator | Create Unique Songs with AI" />
+    <meta property="twitter:description" content="Transform your ideas into music with Chordara's AI-powered music generator. Create unique songs in any style - electronic, rock, jazz, pop, and more. No musical experience required!" />
+    <meta property="twitter:image" content="https://chordara.com/og-image.png" />
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="application-name" content="Chordara" />
+    <meta name="apple-mobile-web-app-title" content="Chordara" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Chordara",
+      "description": "AI-powered music generator that transforms your ideas into unique songs",
+      "url": "https://chordara.com",
+      "applicationCategory": "MusicApplication",
+      "operatingSystem": "Web Browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "creator": {
+        "@type": "Organization",
+        "name": "Chordara"
+      },
+      "featureList": [
+        "AI Music Generation",
+        "Multiple Music Styles",
+        "Real-time Audio Playback",
+        "Export to MP3/WAV",
+        "User Account Management"
+      ]
+    }
+    </script>
+    
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Polyfill for global variable required by Magenta.js
+      if (typeof global === 'undefined') {
+        window.global = globalThis;
+      }
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
