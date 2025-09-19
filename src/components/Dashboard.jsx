@@ -13,6 +13,7 @@ import {
 import { db } from "../services/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { deleteAudioFromCloudinary } from "../services/cloudinary";
+import dittytoyService from "../services/dittytoyService";
 import Header from "./Header";
 import SEO from "./SEO";
 
@@ -24,13 +25,7 @@ const Dashboard = () => {
   const { currentUser } = useAuth();
 
   useEffect(() => {
-    console.log("📊 Dashboard: Setting up tracks listener", {
-      hasUser: !!currentUser,
-      userId: currentUser?.uid,
-    });
-
     if (!currentUser) {
-      console.log("📊 Dashboard: No user, setting loading to false");
       setLoading(false);
       return;
     }
@@ -42,29 +37,20 @@ const Dashboard = () => {
       orderBy("createdAt", "desc")
     );
 
-    console.log("📊 Dashboard: Creating Firestore query");
-
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        console.log(
-          "📊 Dashboard: Firestore snapshot received:",
-          snapshot.docs.length,
-          "user tracks"
-        );
-
         const tracksData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
 
-        console.log("📊 Dashboard: User tracks:", tracksData);
         setTracks(tracksData);
         setLoading(false);
         setError(null);
       },
       (error) => {
-        console.error("📊 Dashboard: Error fetching tracks:", error);
+        console.error("Error fetching tracks:", error);
         setError(
           "Failed to load tracks. This might be due to an ad blocker or network issue."
         );
@@ -73,7 +59,6 @@ const Dashboard = () => {
     );
 
     return () => {
-      console.log("📊 Dashboard: Unsubscribing from tracks listener");
       unsubscribe();
     };
   }, [currentUser]);
@@ -91,7 +76,7 @@ const Dashboard = () => {
     navigate("/player", { state: { track } });
   };
 
-  const handleDeleteTrack = async (trackId, publicId) => {
+  const handleDeleteTrack = async (trackId, cloudinaryPublicId) => {
     if (
       !window.confirm(
         "Are you sure you want to delete this track? This action cannot be undone."
@@ -101,14 +86,8 @@ const Dashboard = () => {
     }
 
     try {
-      // Delete from Cloudinary first
-      if (publicId) {
-        await deleteAudioFromCloudinary(publicId);
-      }
-
-      // Delete from Firestore
-      await deleteDoc(doc(db, "tracks", trackId));
-
+      // Use Dittytoy service to delete track
+      await dittytoyService.deleteTrack(trackId, cloudinaryPublicId);
       alert("Track deleted successfully!");
     } catch (error) {
       console.error("Error deleting track:", error);
@@ -117,46 +96,23 @@ const Dashboard = () => {
   };
 
   const handleRefresh = () => {
-    console.log("📊 Dashboard: Refreshing tracks...");
     setLoading(true);
     setError(null);
     // Force a page refresh to reload tracks
     window.location.reload();
   };
 
-  // Test function to create a track directly in Firestore
-  const handleTestFirestoreSave = async () => {
-    if (!currentUser) {
-      alert("No user logged in");
-      return;
-    }
-
-    try {
-      console.log("🧪 Testing Firestore save...");
-      const testTrackData = {
-        userId: currentUser.uid,
-        name: `Test Track ${new Date().toLocaleTimeString()}`,
-        description: "Test track for debugging Firestore",
-        style: "electronic",
-        tempo: 120,
-        downloadUrl: "https://example.com/test.mp3",
-        publicId: "test-id",
-        format: "mp3",
-        createdAt: new Date(),
-        fileSize: 1024,
-        duration: 120,
-        key: "C",
-        mood: "energetic",
-        chordProgression: ["C", "G", "Am", "F"],
-      };
-
-      console.log("🧪 Creating test track:", testTrackData);
-      const docRef = await addDoc(collection(db, "tracks"), testTrackData);
-      console.log("🧪 Test track created with ID:", docRef.id);
-      alert("Test track created! Check dashboard and console for details.");
-    } catch (error) {
-      console.error("🧪 Test track creation failed:", error);
-      alert(`Test track creation failed: ${error.message}`);
+  const handleDownloadTrack = (track) => {
+    if (track.cloudinaryUrl) {
+      // Download from Cloudinary URL
+      const link = document.createElement("a");
+      link.href = track.cloudinaryUrl;
+      link.download = `${track.title || "untitled"}.webm`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert("Download URL not available for this track.");
     }
   };
 
@@ -182,9 +138,6 @@ const Dashboard = () => {
           <div className="dashboard-actions">
             <button onClick={handleRefresh} className="refresh-button">
               🔄 Refresh
-            </button>
-            <button onClick={handleTestFirestoreSave} className="test-button">
-              🧪 Test Firestore
             </button>
             <button onClick={handleStartNewTrack} className="new-track-button">
               + New Track
@@ -214,7 +167,7 @@ const Dashboard = () => {
             {tracks.map((track) => (
               <div key={track.id} className="track-card">
                 <div className="track-info">
-                  <h3>{track.name || "Untitled Track"}</h3>
+                  <h3>{track.title || track.name || "Untitled Track"}</h3>
                   <p className="track-description">{track.description}</p>
                   <div className="track-meta">
                     <span className="track-style">{track.style}</span>
@@ -232,13 +185,15 @@ const Dashboard = () => {
                     ▶️ Play
                   </button>
                   <button
-                    onClick={() => window.open(track.downloadUrl, "_blank")}
+                    onClick={() => handleDownloadTrack(track)}
                     className="action-button download"
                   >
                     📥 Download
                   </button>
                   <button
-                    onClick={() => handleDeleteTrack(track.id, track.publicId)}
+                    onClick={() =>
+                      handleDeleteTrack(track.id, track.cloudinaryPublicId)
+                    }
                     className="action-button delete"
                   >
                     🗑️ Delete

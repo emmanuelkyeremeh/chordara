@@ -1,4 +1,4 @@
-// Brain.js service for generating musical patterns
+// Brain.js service for generating musical patterns optimized for Dittytoy
 import * as brain from 'brain.js';
 
 // Initialize neural networks for different musical elements
@@ -204,17 +204,17 @@ export const generateMelody = (instructions, duration = 60) => {
         }
       }
       
-      // Add some octave variation based on phrase
+      // Add some octave variation based on phrase (optimized for Dittytoy)
       let octaveVariation = 0;
       if (currentPhrase === 'chorus') {
-        octaveVariation = Math.floor((prediction[`note${(patternIndex % 8) + 1}`] - 0.5) * 3);
-      } else {
         octaveVariation = Math.floor((prediction[`note${(patternIndex % 8) + 1}`] - 0.5) * 2);
+      } else {
+        octaveVariation = Math.floor((prediction[`note${(patternIndex % 8) + 1}`] - 0.5) * 1);
       }
       
       const finalNote = note.replace(/\d+/, (match) => {
         const octave = parseInt(match) + octaveVariation;
-        return Math.max(2, Math.min(6, octave)); // Keep within reasonable range
+        return Math.max(3, Math.min(6, octave)); // Keep within Dittytoy-friendly range
       });
       
       // Calculate velocity based on phrase, mood, and intensity
@@ -233,20 +233,18 @@ export const generateMelody = (instructions, duration = 60) => {
       
       velocity = Math.min(1, Math.max(0.2, velocity));
       
-      // Add more realistic note characteristics
+      // Add note characteristics optimized for Dittytoy
       const noteData = {
         note: finalNote,
         duration: rhythmPattern[patternIndex],
         time: (i * beatsPerChord + beat) / beatsPerSecond,
         velocity: velocity,
-        // Add some unique characteristics
-        pitchBend: (randomSeed + i + beat) % 1 > 0.9 ? (Math.random() - 0.5) * 0.3 : 0,
-        attack: 0.02 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.08),
-        release: 0.3 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.7),
+        // Dittytoy-specific characteristics
+        attack: 0.01 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.05),
+        release: 0.2 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.4),
         // Add expression and dynamics
         expression: currentIntensity,
-        vibrato: currentPhrase === 'chorus' ? 0.1 : 0.05,
-        // Add legato for smoother melodies
+        // Simplified for Dittytoy compatibility
         legato: beat % 2 === 0 && patternIndex % 2 === 0 ? 0.8 : 0.3
       };
       

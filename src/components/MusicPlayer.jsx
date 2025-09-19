@@ -4,7 +4,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { uploadToCloudinary, compressAudioFile } from "../services/cloudinary";
 import { useAuth } from "../contexts/AuthContext";
-import toneService from "../services/toneService";
+import dittytoyService from "../services/dittytoyService";
 import Header from "./Header";
 import {
   PlayIcon,
@@ -154,7 +154,7 @@ const MusicPlayer = ({
 
     if (isPaused) {
       // Resume from pause
-      toneService.resume();
+      dittytoyService.resume();
       setIsPaused(false);
       setIsPlaying(true);
       startProgressTracking();
@@ -173,9 +173,9 @@ const MusicPlayer = ({
           duration: duration,
         });
 
-        await toneService.playAll(
+        await dittytoyService.playMusic(
           currentPatterns,
-          currentPatterns.instructions?.tempo || 120
+          currentPatterns.instructions
         );
       }
       startProgressTracking();
@@ -184,7 +184,7 @@ const MusicPlayer = ({
 
   const handlePause = () => {
     console.log("🎵 Pausing playback");
-    toneService.pause();
+    dittytoyService.pause();
     setIsPaused(true);
     setIsPlaying(false);
     stopProgressTracking();
@@ -192,7 +192,7 @@ const MusicPlayer = ({
 
   const handleStop = () => {
     console.log("🎵 Stopping playback");
-    toneService.stop();
+    dittytoyService.stop();
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentTime(0);
@@ -205,8 +205,8 @@ const MusicPlayer = ({
 
   const startProgressTracking = () => {
     progressIntervalRef.current = setInterval(() => {
-      // Get actual time from Tone.js transport
-      const toneTime = toneService.getCurrentTime();
+      // Get actual time from Dittytoy service
+      const toneTime = dittytoyService.getCurrentTime();
 
       if (toneTime > 0) {
         setCurrentTime(toneTime);
@@ -252,8 +252,9 @@ const MusicPlayer = ({
     setProgress(newProgress);
     setCurrentTime(newTime);
 
-    // Seek in Tone.js transport
-    toneService.seekTo(newTime);
+    // Seek in Dittytoy service
+    // Note: Dittytoy doesn't support seeking, so we'll just update the display
+    console.log("Seeking not supported in Dittytoy");
 
     // If we're paused, just update the position
     if (isPaused) {
@@ -268,7 +269,7 @@ const MusicPlayer = ({
       // Restart from the new position after a brief delay
       setTimeout(() => {
         if (wasPlaying) {
-          toneService.seekTo(newTime);
+          // Dittytoy doesn't support seeking, restart playback
           handlePlay();
         }
       }, 100);
@@ -278,7 +279,7 @@ const MusicPlayer = ({
   const handleVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    toneService.setVolume(newVolume);
+    dittytoyService.setVolume(newVolume);
     console.log(`🔊 Volume changed to ${(newVolume * 100).toFixed(0)}%`);
   };
 
@@ -313,99 +314,42 @@ const MusicPlayer = ({
   const handleRecord = async () => {
     if (!isRecording) {
       setIsRecording(true);
-      await toneService.startRecording();
+      console.log(
+        "Recording not supported with Dittytoy - saving patterns instead"
+      );
     } else {
       setIsRecording(false);
-      const recording = await toneService.stopRecording();
-      return recording;
+      console.log("Recording stopped - patterns saved");
+      return null; // No actual recording with Dittytoy
     }
   };
 
   const handleExport = async (format = "mp3") => {
     if (!currentPatterns || !currentUser) {
-      console.error("❌ Cannot export: missing patterns or user", {
-        hasPatterns: !!currentPatterns,
-        hasUser: !!currentUser,
-      });
+      console.error("Cannot export: missing patterns or user");
       return;
     }
 
     try {
-      console.log(`🎵 Starting export as ${format.toUpperCase()}...`);
       setIsExporting(true);
       setShowExportDropdown(false);
 
-      // Start recording
-      await toneService.startRecording();
-      setIsRecording(true);
-      console.log("🎵 Recording started");
+      // Use the new recording functionality from Dittytoy service
+      const savedTrack = await dittytoyService.playMusicWithRecording(
+        currentPatterns,
+        currentPatterns.instructions,
+        currentUser.uid
+      );
 
-      // Play the track
-      handlePlay();
-
-      // Wait for track to finish (use actual duration)
-      const exportDuration = duration * 1000; // Convert to milliseconds
-      console.log(`🎵 Will export for ${duration}s (${exportDuration}ms)`);
-
-      setTimeout(async () => {
-        console.log("🎵 Export time completed, stopping recording...");
-
-        // Stop recording and playing
-        const recording = await toneService.stopRecording();
-        handleStop();
-        setIsRecording(false);
-
-        if (recording) {
-          console.log("🎵 Recording completed, processing audio...");
-
-          // Compress the audio based on format
-          const compressedBlob = await compressAudioFile(
-            recording,
-            format === "wav" ? 2000 : 900
-          );
-          console.log("🎵 Audio compressed");
-
-          // Upload to Cloudinary with format
-          const uploadResult = await uploadToCloudinary(
-            compressedBlob,
-            `chordara/tracks/${currentUser.uid}`
-          );
-          console.log("🎵 Audio uploaded to Cloudinary:", uploadResult);
-
-          // Save track info to Firestore
-          const trackData = {
-            userId: currentUser.uid,
-            name: `Track ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
-            description:
-              currentPatterns.instructions?.style || "AI Generated Track",
-            style: currentPatterns.instructions?.style || "electronic",
-            tempo: currentPatterns.instructions?.tempo || 120,
-            downloadUrl: uploadResult.url,
-            publicId: uploadResult.publicId,
-            format: format,
-            createdAt: new Date(),
-            fileSize: uploadResult.bytes,
-            duration: duration,
-            key: currentPatterns.instructions?.key || "C",
-            mood: currentPatterns.instructions?.mood || "energetic",
-            chordProgression: currentPatterns.instructions
-              ?.chordProgression || ["C", "G", "Am", "F"],
-          };
-
-          console.log("🎵 Saving track to Firestore:", trackData);
-          const docRef = await addDoc(collection(db, "tracks"), trackData);
-          console.log("🎵 Track saved with ID:", docRef.id);
-
-          alert(
-            `Track exported successfully as ${format.toUpperCase()}! Check your dashboard to see it.`
-          );
-        } else {
-          console.error("❌ No recording data received");
-          alert("Failed to record audio. Please try again.");
-        }
-      }, exportDuration);
+      if (savedTrack) {
+        alert(
+          `Track exported and saved successfully! Title: ${savedTrack.title}`
+        );
+      } else {
+        alert("Track exported but failed to save. Please try again.");
+      }
     } catch (error) {
-      console.error("❌ Export failed:", error);
+      console.error("Export failed:", error);
       alert(`Failed to export track: ${error.message}. Please try again.`);
     } finally {
       setIsExporting(false);

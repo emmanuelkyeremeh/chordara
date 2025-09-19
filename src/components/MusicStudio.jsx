@@ -10,7 +10,7 @@ import {
   generateDrumPattern,
 } from "../services/brainService";
 import { uploadToCloudinary, compressAudioFile } from "../services/cloudinary";
-import toneService from "../services/toneService";
+import dittytoyService from "../services/dittytoyService";
 import MusicPlayer from "./MusicPlayer";
 import Header from "./Header";
 import SEO from "./SEO";
@@ -27,19 +27,13 @@ const MusicStudio = () => {
   const [savedTrackId, setSavedTrackId] = useState(null);
 
   useEffect(() => {
-    // Initialize Tone.js when component mounts
-    toneService.initialize().catch(console.error);
+    // Initialize Dittytoy when component mounts
+    dittytoyService.initialize().catch(console.error);
 
     // Cleanup function to stop playback when leaving the page
     return () => {
-      console.log(
-        "🎵 MusicStudio: Cleaning up - stopping playback and recording"
-      );
-      toneService.stop();
-      // Stop any active recording
-      if (toneService.isRecording) {
-        toneService.stopRecording().catch(console.error);
-      }
+      console.log("🎵 MusicStudio: Cleaning up - stopping playback");
+      dittytoyService.stop();
     };
   }, []);
 
@@ -96,70 +90,39 @@ const MusicStudio = () => {
       console.log("🎵 Starting auto-save process...");
       setSaving(true);
 
-      // Start recording
-      console.log("🎵 Starting recording for auto-save...");
-      try {
-        await toneService.startRecording();
-      } catch (error) {
-        console.error("🎵 Failed to start recording for auto-save:", error);
-        throw error;
-      }
+      // Since dittytoy doesn't have recording capabilities, we'll save the patterns directly
+      // and generate a preview URL using the dittytoy code
+      console.log("🎵 Saving track data directly...");
 
-      // Play the track
-      console.log("🎵 Playing track for auto-save...");
-      await toneService.playAll(patterns, patterns.instructions.tempo);
+      // Generate dittytoy code for the track
+      const dittytoyCode = dittytoyService.generateDittytoyCode(
+        patterns,
+        patterns.instructions
+      );
 
-      // Wait for track to finish (60 seconds)
-      setTimeout(async () => {
-        try {
-          console.log("🎵 Stopping recording...");
-          const recording = await toneService.stopRecording();
-          toneService.stop();
+      // Save track info to Firestore
+      const trackData = {
+        userId: currentUser.uid,
+        name: `Track ${new Date().toLocaleDateString()}`,
+        description: patterns.instructions?.style || "AI Generated Track",
+        style: patterns.instructions?.style || "electronic",
+        tempo: patterns.instructions?.tempo || 120,
+        patterns: patterns,
+        dittytoyCode: dittytoyCode,
+        createdAt: new Date(),
+        isAutoSaved: true,
+      };
 
-          if (recording) {
-            console.log("🎵 Recording completed, processing audio...");
-            // Compress the audio
-            console.log("🎵 Compressing audio...");
-            const compressedBlob = await compressAudioFile(recording);
+      console.log("🎵 Saving track to Firestore:", trackData);
+      const docRef = await addDoc(collection(db, "tracks"), trackData);
+      console.log("🎵 Track saved with ID:", docRef.id);
 
-            // Upload to Cloudinary
-            console.log("🎵 Uploading to Cloudinary...");
-            const uploadResult = await uploadToCloudinary(
-              compressedBlob,
-              `chordara/tracks/${currentUser.uid}`
-            );
-            console.log("🎵 Cloudinary upload result:", uploadResult);
-
-            // Save track info to Firestore
-            const trackData = {
-              userId: currentUser.uid,
-              name: `Track ${new Date().toLocaleDateString()}`,
-              description: patterns.instructions?.style || "AI Generated Track",
-              style: patterns.instructions?.style || "electronic",
-              tempo: patterns.instructions?.tempo || 120,
-              downloadUrl: uploadResult.url,
-              publicId: uploadResult.publicId,
-              format: "mp3",
-              createdAt: new Date(),
-              fileSize: uploadResult.bytes,
-            };
-
-            console.log("🎵 Saving track to Firestore:", trackData);
-            const docRef = await addDoc(collection(db, "tracks"), trackData);
-            console.log("🎵 Track saved with ID:", docRef.id);
-
-            setSavedTrackId(docRef.id);
-            alert("Track automatically saved to your library!");
-          }
-        } catch (error) {
-          console.error("Auto-save failed:", error);
-          alert("Failed to auto-save track, but you can still play it.");
-        } finally {
-          setSaving(false);
-        }
-      }, 60000);
+      setSavedTrackId(docRef.id);
+      alert("Track automatically saved to your library!");
     } catch (error) {
-      console.error("Auto-save setup failed:", error);
+      console.error("Auto-save failed:", error);
+      alert("Failed to auto-save track, but you can still play it.");
+    } finally {
       setSaving(false);
     }
   };
@@ -174,18 +137,35 @@ const MusicStudio = () => {
       setInstructions(null);
       setPrompt("");
       setSavedTrackId(null);
-      toneService.stop();
+      dittytoyService.stop();
     }
   };
 
   const handlePlay = async () => {
-    if (patterns) {
-      await toneService.playAll(patterns, patterns.instructions.tempo);
+    if (patterns && currentUser) {
+      try {
+        // Use the new recording functionality
+        const savedTrack = await dittytoyService.playMusicWithRecording(
+          patterns,
+          patterns.instructions,
+          currentUser.uid
+        );
+
+        if (savedTrack) {
+          alert(`Track saved successfully! Title: ${savedTrack.title}`);
+        }
+      } catch (error) {
+        console.error("Error playing and saving music:", error);
+        alert("Error playing music. Please try again.");
+      }
+    } else if (patterns) {
+      // Fallback to regular play without recording
+      await dittytoyService.playMusic(patterns, patterns.instructions);
     }
   };
 
   const handleStop = () => {
-    toneService.stop();
+    dittytoyService.stop();
   };
 
   return (

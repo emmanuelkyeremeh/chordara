@@ -5,8 +5,7 @@ import {
   generateDrumPattern,
   generateBassLine,
 } from "../services/brainService";
-import toneService from "../services/toneService";
-import * as Tone from "tone";
+import dittytoyService from "../services/dittytoyService";
 
 const MusicGenerator = ({ prompt, onGenerated }) => {
   const [generatedPatterns, setGeneratedPatterns] = useState(null);
@@ -17,13 +16,27 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
+  const [currentNote, setCurrentNote] = useState("");
 
   const progressIntervalRef = useRef(null);
-  const sequencesRef = useRef([]);
 
-  // Initialize Tone.js service
+  // Initialize Dittytoy service
   useEffect(() => {
-    toneService.initialize();
+    dittytoyService.initialize();
+
+    // Set up callbacks
+    dittytoyService.setNoteCallback((data) => {
+      setCurrentNote(data.note || "");
+    });
+
+    dittytoyService.setErrorCallback((error) => {
+      setError(`Dittytoy error: ${error.message || error}`);
+    });
+
+    dittytoyService.setProgressCallback((data) => {
+      setCurrentTime(data.currentTime);
+      setProgress(data.progress);
+    });
   }, []);
 
   // Cleanup on unmount
@@ -32,7 +45,7 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
-      sequencesRef.current.forEach((seq) => seq.dispose());
+      dittytoyService.dispose();
     };
   }, []);
 
@@ -115,7 +128,7 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
     }
   };
 
-  // Generate music using Tone.js patterns
+  // Generate music using Dittytoy patterns
   const generateMusic = async () => {
     if (!prompt || prompt.trim().length < 3) {
       setError("Please enter a longer prompt (at least 3 characters)");
@@ -181,7 +194,7 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
     setIsLoading(false);
   };
 
-  // Play the generated music using Tone.js sequences
+  // Play the generated music using Dittytoy
   const playMusic = async () => {
     if (!generatedPatterns || !parsedData) {
       console.warn("No patterns to play");
@@ -189,117 +202,30 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
     }
 
     try {
-      await Tone.start();
-
-      // Stop any existing sequences
+      // Stop any existing playback
       stopMusic();
 
-      // Set tempo
-      Tone.Transport.bpm.value = parsedData.tempo;
-
-      // Create synthesizers
-      const leadSynth = new Tone.Synth({
-        oscillator: { type: "sawtooth" },
-        envelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
-      }).toDestination();
-
-      const bassSynth = new Tone.Synth({
-        oscillator: { type: "triangle" },
-        envelope: { attack: 0.1, decay: 0.3, sustain: 0.4, release: 1.0 },
-      }).toDestination();
-
-      // Create drum sounds
-      const kick = new Tone.MembraneSynth().toDestination();
-      const snare = new Tone.NoiseSynth().toDestination();
-      const hihat = new Tone.NoiseSynth().toDestination();
-      const crash = new Tone.NoiseSynth().toDestination();
-      const openhat = new Tone.NoiseSynth().toDestination();
-
-      // Create sequences for each part
-      const melodySequence = new Tone.Part((time, note) => {
-        leadSynth.triggerAttackRelease(
-          note.note,
-          note.duration,
-          time,
-          note.velocity
-        );
-      }, generatedPatterns.melody).start(0);
-
-      const bassSequence = new Tone.Part((time, note) => {
-        bassSynth.triggerAttackRelease(
-          note.note,
-          note.duration,
-          time,
-          note.velocity
-        );
-      }, generatedPatterns.bass).start(0);
-
-      const drumSequence = new Tone.Part((time, hit) => {
-        const drumMap = { kick, snare, hihat, crash, openhat };
-        const drum = drumMap[hit.instrument];
-        if (drum) {
-          drum.triggerAttackRelease("8n", time, hit.velocity);
-        }
-      }, generatedPatterns.drums).start(0);
-
-      // Store sequences for cleanup
-      sequencesRef.current = [melodySequence, bassSequence, drumSequence];
-
-      // Start progress tracking
-      startProgressTracking();
-
-      // Start playback
-      Tone.Transport.start();
+      // Play music using Dittytoy service
+      await dittytoyService.playMusic(generatedPatterns, parsedData);
       setIsPlaying(true);
+
+      console.log("🎵 Music started playing with Dittytoy");
     } catch (err) {
       setError(`Error playing music: ${err.message}`);
       console.error("Playback error:", err);
     }
   };
 
-  // Start progress tracking
-  const startProgressTracking = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-
-    progressIntervalRef.current = setInterval(() => {
-      const currentTime = Tone.Transport.seconds;
-      setCurrentTime(currentTime);
-
-      if (totalDuration > 0) {
-        const progressPercent = (currentTime / totalDuration) * 100;
-        setProgress(Math.min(progressPercent, 100));
-      }
-
-      // Stop when duration is reached
-      if (currentTime >= totalDuration) {
-        stopMusic();
-      }
-    }, 100); // Update every 100ms
-  };
-
   // Stop the music
   const stopMusic = () => {
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
-
-    // Dispose sequences
-    sequencesRef.current.forEach((seq) => seq.dispose());
-    sequencesRef.current = [];
-
-    // Clear progress tracking
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-
+    dittytoyService.stop();
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
+    setCurrentNote("");
   };
 
-  // Download MIDI function (simplified for Tone.js patterns)
+  // Download JSON function (simplified for Dittytoy patterns)
   const downloadMIDI = () => {
     if (generatedPatterns) {
       // Create a simple MIDI-like data structure
@@ -430,9 +356,23 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
                 ▶️ Play Full Song
               </button>
             ) : (
-              <button onClick={stopMusic} className="stop-button">
-                ⏹️ Stop
-              </button>
+              <div className="playing-controls">
+                <button onClick={stopMusic} className="stop-button">
+                  ⏹️ Stop
+                </button>
+                <button
+                  onClick={() => dittytoyService.pause()}
+                  className="pause-button"
+                >
+                  ⏸️ Pause
+                </button>
+                <button
+                  onClick={() => dittytoyService.resume()}
+                  className="resume-button"
+                >
+                  ▶️ Resume
+                </button>
+              </div>
             )}
             <button onClick={downloadMIDI} className="download-button">
               📥 Download JSON
@@ -446,6 +386,7 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
                 setProgress(0);
                 setCurrentTime(0);
                 setTotalDuration(0);
+                setCurrentNote("");
                 stopMusic();
               }}
               className="regenerate-button"
@@ -453,6 +394,14 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
               🔄 Generate New
             </button>
           </div>
+
+          {currentNote && (
+            <div className="current-note">
+              <p>
+                🎵 Currently playing: <strong>{currentNote}</strong>
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
