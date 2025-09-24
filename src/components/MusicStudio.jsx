@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../contexts/AuthContext";
-import { generateMusicInstructions } from "../services/openRouter";
+import {
+  generateMusicInstructions,
+  generateAIPatterns,
+} from "../services/openRouter";
 import {
   generateMelody,
   generateBassLine,
@@ -51,10 +54,17 @@ const MusicStudio = () => {
       const aiInstructions = await generateMusicInstructions(prompt);
       setInstructions(aiInstructions);
 
-      // Generate musical patterns
-      const melody = generateMelody(aiInstructions, 60); // 1 minute for demo
-      const bass = generateBassLine(aiInstructions, 60);
-      const drums = generateDrumPattern(aiInstructions, 60);
+      // Generate AI-powered musical patterns
+      console.log("🎵 Generating AI-powered patterns...");
+      const aiPatterns = await generateAIPatterns(aiInstructions);
+
+      // Use AI patterns if available, otherwise fall back to brain service
+      const melody =
+        aiPatterns.melodyPattern || generateMelody(aiInstructions, 60);
+      const bass =
+        aiPatterns.bassPattern || generateBassLine(aiInstructions, 60);
+      const drums =
+        aiPatterns.drumPattern || generateDrumPattern(aiInstructions, 60);
 
       const generatedPatterns = {
         melody,
@@ -219,12 +229,36 @@ const MusicStudio = () => {
               </div>
               <div className="instruction-item">
                 <strong>Instruments:</strong>{" "}
-                {instructions.instruments.join(", ")}
+                {instructions.instruments
+                  ? instructions.instruments.join(", ")
+                  : "synth, drums, bass"}
               </div>
               <div className="instruction-item">
                 <strong>Chord Progression:</strong>{" "}
-                {instructions.chordProgression.join(" - ")}
+                {instructions.chordProgression
+                  ? instructions.chordProgression.join(" - ")
+                  : "C - Am - F - G"}
               </div>
+              {instructions.bassStyle && (
+                <div className="instruction-item">
+                  <strong>Bass Style:</strong> {instructions.bassStyle}
+                </div>
+              )}
+              {instructions.harmonyComplexity && (
+                <div className="instruction-item">
+                  <strong>Harmony:</strong> {instructions.harmonyComplexity}
+                </div>
+              )}
+              {instructions.texture && (
+                <div className="instruction-item">
+                  <strong>Texture:</strong> {instructions.texture}
+                </div>
+              )}
+              {instructions.energy && (
+                <div className="instruction-item">
+                  <strong>Energy:</strong> {instructions.energy}
+                </div>
+              )}
             </div>
           </div>
         )}

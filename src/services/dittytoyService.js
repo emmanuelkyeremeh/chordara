@@ -227,7 +227,7 @@ loop((lc) => {
   } else {
     sleep(8);
   }
-}, { name: 'harmony' }).connect(phaser.create()).connect(echo.create());
+}, { name: 'harmony' }).connect(reverb.create()).connect(phaser.create()).connect(echo.create());
 
 `;
     }
@@ -606,6 +606,13 @@ class Delayline {
     }
 }
 
+function allpass(delayline, x, k) {
+    var delayin = x - delayline.lastOutput * k;
+    var y = delayline.lastOutput + k * delayin;
+    delayline.clock(delayin);
+    return y;
+}
+
 input.echo = .8;
 const echo = filter.def(class {
     constructor(options) {
@@ -630,6 +637,60 @@ const echo = filter.def(class {
         var s = (this.lastOutput[0] - this.lastOutput[1])*.5;
         s *= 2;
         return [m+s, m-s];
+    }
+});
+
+// Sophisticated reverb effect
+const reverb = filter.def(class {
+    constructor(options) {
+        this.lastReturn = 0;
+        this.krt = .7;
+        this.delaylines = [];
+        // Create several delay lines with random lengths
+        for(var i = 0; i < 12; ++i) {
+            this.delaylines.push(new Delayline(10 + Math.floor(Math.random() * 5000)));
+        }
+    }
+    process(input, options) {
+        var inv = input[0] + input[1];
+        var v = this.lastReturn;
+        // Let the signal pass through the loop of delay lines. Inject input signal at multiple locations.
+        v = allpass(this.delaylines[0], v + inv, .5);
+        v = allpass(this.delaylines[1], v, .5);
+        this.delaylines[2].clock(v);
+        v = this.delaylines[2].lastOutput * this.krt;
+        v = allpass(this.delaylines[3], v + inv, .5);
+        v = allpass(this.delaylines[4], v, .5);
+        this.delaylines[5].clock(v);
+        v = this.delaylines[5].lastOutput * this.krt;
+        v = allpass(this.delaylines[6], v + inv, .5);
+        v = allpass(this.delaylines[7], v, .5);
+        this.delaylines[8].clock(v);
+        v = this.delaylines[8].lastOutput * this.krt;
+        v = allpass(this.delaylines[9], v + inv, .5);
+        v = allpass(this.delaylines[10], v, .5);
+        this.delaylines[11].clock(v);
+        v = this.delaylines[11].lastOutput * this.krt;
+        this.lastReturn = v;
+        // Tap the delay lines at randomized locations and accumulate the output signal.
+        var ret = [0, 0];
+        ret[0] += this.delaylines[2].tap(111);
+        ret[1] += this.delaylines[2].tap(2250);
+        ret[0] += this.delaylines[5].tap(311);
+        ret[1] += this.delaylines[5].tap(1150);
+        ret[0] += this.delaylines[8].tap(511);
+        ret[1] += this.delaylines[8].tap(50);
+        ret[0] += this.delaylines[11].tap(4411);
+        ret[1] += this.delaylines[11].tap(540);
+        // Mix wet + dry signal.
+        ret[0] = ret[0] * .1 + input[0];
+        ret[1] = ret[1] * .1 + input[1];
+        // Slight stereo widening:
+        var m = (ret[0] + ret[1]) * .5;
+        var s = (ret[1] - ret[0]) * .5;
+        ret[0] = m + s * 1.5;
+        ret[1] = m - s * 1.5;
+        return ret;
     }
 });
 
@@ -842,6 +903,40 @@ const noise = synth.def(class {
         return this.flt.process(Math.random() - .5) * env.value;
     }
 }, {attack: .01, release: 8, cutoff: .3, amp: .12});
+
+// Karplus-Strong plucked string synthesis
+const ks = synth.def(class {
+    constructor(options) {
+        let freq = midi_to_hz(options.note);
+        let delay_samples = 1 / (freq * ditty.dt); // Duration of one period in samples
+        this.len = Math.floor(delay_samples) + 1; // buffer size
+        this.fd = delay_samples % 1; // fractional delay to interpolate between samples
+        this.buf = new Float32Array(this.len); // buffer used to create a delay
+        this.pos = 0; // current position of the reading/writing head
+        this.a1 = clamp(2 * Math.PI * options.cutoff * ditty.dt, 0, 1); // Lowpass filter the reinjection
+        this.s0 = 0; // Signal value history for the lowpass filter
+        let offs = Math.floor(this.len * (0.2 + 0.2*Math.random())); // the offset determines the plucking position
+        
+        // Initialize part of the buffer with noise
+        for(let i=0; i < 70 && i < this.len; i++){
+            this.buf[i] = Math.random();
+            // The following line introduces "comb filtering" in the filter input, for more interesting results
+            this.buf[(i+offs)%this.len] += -this.buf[i];
+        }
+    }
+    process(note, env, tick, options) {
+        let pos = this.pos;
+        let value = lerp(this.buf[pos],
+                         this.buf[(pos+1)%this.len],
+                         this.fd); // linear interpolation for the fractional delay
+        // Nonlinearity (optional)
+        // value /= 1 + Math.max(value,0);
+        this.s0 += this.a1 * (value - this.s0); // lowpass filter
+        this.buf[pos] = lerp(value, this.s0, options.lowpass_amt);
+        this.pos = (pos+1)%this.len;
+        return this.s0 * env.value; // The natural decay is a bit slow, so we still apply an envelope
+    }
+}, {env:adsr, release:2.75, cutoff:2500, lowpass_amt:0.1});
 
 // Melodic synths
 const pluck = synth.def(Analog, {nuni:2, cutoff: 0, fa: .01, fd: 30, detune: .3, amp: .3, release: .1, attack:.005});

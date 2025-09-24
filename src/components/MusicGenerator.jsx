@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { generateMusicInstructions } from "../services/openRouter";
+import {
+  generateMusicInstructions,
+  generateAIPatterns,
+} from "../services/openRouter";
 import {
   generateMelody,
   generateDrumPattern,
@@ -124,6 +127,10 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
         mood: "energetic",
         melodyStyle: "ai-generated",
         drumPattern: "four-on-floor",
+        bassStyle: "driving",
+        harmonyComplexity: "moderate",
+        texture: "layered",
+        energy: "medium",
       };
     }
   };
@@ -148,10 +155,17 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
         `🎵 Starting music generation for ${parsed.duration}s track...`
       );
 
-      // Generate all musical patterns
-      const melody = generateMelody(parsed, parsed.duration);
-      const drums = generateDrumPattern(parsed, parsed.duration);
-      const bass = generateBassLine(parsed, parsed.duration);
+      // Generate AI-powered musical patterns
+      console.log("🎵 Generating AI-powered patterns...");
+      const aiPatterns = await generateAIPatterns(parsed);
+
+      // Use AI patterns if available, otherwise fall back to brain service
+      const melody =
+        aiPatterns.melodyPattern || generateMelody(parsed, parsed.duration);
+      const drums =
+        aiPatterns.drumPattern || generateDrumPattern(parsed, parsed.duration);
+      const bass =
+        aiPatterns.bassPattern || generateBassLine(parsed, parsed.duration);
 
       console.log("🎵 Generated patterns:", {
         melody: melody.length,
@@ -172,6 +186,10 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
           instruments: ["synth", "bass", "drums"],
           melodyStyle: parsed.melodyStyle,
           drumPattern: parsed.drumPattern,
+          bassStyle: parsed.bassStyle,
+          harmonyComplexity: parsed.harmonyComplexity,
+          texture: parsed.texture,
+          energy: parsed.energy,
         },
       };
 
