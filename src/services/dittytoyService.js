@@ -121,100 +121,197 @@ class DittytoyService {
     const { tempo, key, style, mood } = instructions;
     const { melody, drums, bass } = patterns;
 
-    // Set BPM
-    let dittyCode = `ditty.bpm = ${tempo};\n\n`;
+    // Set BPM and add utility functions
+    let dittyCode = `ditty.bpm = ${tempo};
+
+// Utility functions for better sound shaping
+function softclip(x) {
+    return x < -1 ? -1 : x > 1 ? 1 : 1.5*(1 - x*x/3)*x;
+}
+
+function varsaw(p, formant) {
+    let x = p%1;
+    return (x - 0.5) * softclip(formant*x*(1-x));
+}
+
+function fract(x) {
+    return x - Math.floor(x);
+}
+
+function triangle(x) {
+    return Math.abs(fract(x + .5) - .5) * 2;
+}
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+function clamp(x, min, max) {
+    return Math.min(Math.max(x, min), max);
+}
+
+`;
+
+    // Add advanced effects
+    dittyCode += this.generateAdvancedEffects();
+    
+    // Add custom synth definitions
+    dittyCode += this.generateCustomSynths();
 
     // Generate melody loop with more realistic patterns
     if (melody && melody.length > 0) {
-      dittyCode += `// Melody loop
-loop(() => {
+      dittyCode += `// Melody loop with loop counter for structure
+loop((lc) => {
 `;
       
-      const melodyByTime = this.groupNotesByTime(melody);
+      // Create pattern variations based on loop counter
+      dittyCode += `  var patterns = [
+    {p:[${this.generateMelodyPattern(melody, 0)}], d:[${this.generateDurationPattern(melody, 0)}]},
+    {p:[${this.generateMelodyPattern(melody, 1)}], d:[${this.generateDurationPattern(melody, 1)}]},
+    {p:[${this.generateMelodyPattern(melody, 2)}], d:[${this.generateDurationPattern(melody, 2)}]}
+  ];
+  var pattern = patterns[lc % patterns.length];
+  
+  for(var i = 0; i < pattern.p.length; ++i) {
+    var r = Math.random() * .05; // Human-like timing variation
+    sleep(r);
+    synth1.play(pattern.p[i], {duration: pattern.d[i]/3 - .1 * Math.random(), release: .1});
+    sleep(pattern.d[i]/3 - r);
+  }
+`;
       
-      melodyByTime.forEach(({ time, notes }) => {
-        if (time > 0) {
-          dittyCode += `  sleep(${time});\n`;
-        }
-        notes.forEach(note => {
-          const duration = this.convertDuration(note.duration);
-          const velocity = note.velocity || 0.7;
-          const noteName = this.convertNoteToDittytoy(note.note);
-          // More realistic envelope settings
-          dittyCode += `  sine.play(${noteName}, { attack: 0.05, release: 0.3, duration: ${duration}, amp: ${velocity} });\n`;
-        });
-      });
-      
-      dittyCode += `}, { name: 'melody' });
+      dittyCode += `}, { name: 'melody' }).connect(echo.create());
 
 `;
     }
 
-    // Generate bass loop with more realistic patterns
+    // Generate bass loop with enhanced bass synth
     if (bass && bass.length > 0) {
-      dittyCode += `// Bass loop
-loop(() => {
-`;
-      
-      const bassByTime = this.groupNotesByTime(bass);
-      bassByTime.forEach(({ time, notes }) => {
-        if (time > 0) {
-          dittyCode += `  sleep(${time});\n`;
-        }
-        notes.forEach(note => {
-          const duration = this.convertDuration(note.duration);
-          const velocity = note.velocity || 0.8;
-          const noteName = this.convertNoteToDittytoy(note.note);
-          // More realistic bass envelope
-          dittyCode += `  sine.play(${noteName}, { attack: 0.1, release: 0.8, duration: ${duration}, amp: ${velocity} });\n`;
-        });
-      });
-      
-      dittyCode += `}, { name: 'bass' });
+      dittyCode += `// Enhanced bass loop with varsaw and dynamic filtering
+loop((lc) => {
+  var patterns = [
+    {p:[${this.generateBassPattern(bass, 0)}], d:[${this.generateBassDurationPattern(bass, 0)}]},
+    {p:[${this.generateBassPattern(bass, 1)}], d:[${this.generateBassDurationPattern(bass, 1)}]},
+    {p:[${this.generateBassPattern(bass, 2)}], d:[${this.generateBassDurationPattern(bass, 2)}]}
+  ];
+  var pattern = patterns[lc % patterns.length];
+  
+  for(var i = 0; i < pattern.p.length; ++i) {
+    var r = Math.random() * .05;
+    sleep(r);
+    bass.play(pattern.p[i], {duration: pattern.d[i]/3 - .1 * Math.random(), release: .1});
+    sleep(pattern.d[i]/3 - r);
+  }
+}, { name: 'bass' });
 
 `;
     }
 
     // Add harmony layer for more realistic sound
     if (melody && melody.length > 0) {
-      dittyCode += `// Harmony layer
-loop(() => {
-`;
-      
-      const melodyByTime = this.groupNotesByTime(melody);
-      
-      melodyByTime.forEach(({ time, notes }) => {
-        if (time > 0) {
-          dittyCode += `  sleep(${time});\n`;
-        }
-        notes.forEach(note => {
-          const duration = this.convertDuration(note.duration);
-          const velocity = (note.velocity || 0.7) * 0.4; // Quieter harmony
-          const noteName = this.convertNoteToDittytoy(note.note);
-          // Add harmony note (5th above)
-          const harmonyNote = this.getHarmonyNote(noteName);
-          dittyCode += `  sine.play(${harmonyNote}, { attack: 0.1, release: 0.4, duration: ${duration}, amp: ${velocity} });\n`;
-        });
-      });
-      
-      dittyCode += `}, { name: 'harmony' });
+      dittyCode += `// Harmony layer with strings
+loop((lc) => {
+  var patterns = [
+    {p:[${this.generateHarmonyPattern(melody, 0)}]},
+    {p:[${this.generateHarmonyPattern(melody, 1)}]},
+    {p:[${this.generateHarmonyPattern(melody, 2)}]}
+  ];
+  var pattern = patterns[lc % patterns.length];
+  
+  if(pattern && pattern.p.length > 0) {
+    for(var i = 0; i < pattern.p.length; ++i) {
+      strings.play(pattern.p[i]-12, {duration: 8});
+      sleep(.05);
+    }
+    sleep(8-pattern.p.length*.05);
+  } else {
+    sleep(8);
+  }
+}, { name: 'harmony' }).connect(phaser.create()).connect(echo.create());
 
 `;
     }
 
-    // Add rhythm layer using sine waves
+    // Add realistic drum patterns with enhanced percussion
     if (drums && drums.length > 0) {
-      dittyCode += `// Rhythm layer
+      dittyCode += `// Enhanced drum patterns with realistic percussion
+const beat = [
+    ['x....xx..x.x', bassdrum],
+    ['..x..x..x..x', smallbongo],
+    ['x.....x..x..', largebongo],
+    ['.........x.x', conga],
+    ['...x.....x..', rimshot],
+    ['xxxxxxxxxxxx', hihat],
+    ['..x.........', cymbal],
+    ['.. .. .. x. ', quijada]
+];
+
 loop(() => {
-  sine.play(c3, { attack: 0.01, release: 0.1, duration: 0.1, amp: 0.15 });
-  sleep(1);
-  sine.play(c3, { attack: 0.01, release: 0.1, duration: 0.1, amp: 0.1 });
-  sleep(1);
-  sine.play(c3, { attack: 0.01, release: 0.1, duration: 0.1, amp: 0.15 });
-  sleep(1);
-  sine.play(c3, { attack: 0.01, release: 0.1, duration: 0.1, amp: 0.1 });
-  sleep(1);
-}, { name: 'rhythm' });
+    for(var i = 0; i < 12; ++i) {
+        for(var j = 0; j < beat.length; ++j) {
+            if(beat[j][0][i] == 'x') {
+                beat[j][1].play();
+            }
+        }
+        sleep(1/3);
+    }
+}, { name: 'drums' });
+
+`;
+    }
+
+    // Add atmospheric noise layer
+    dittyCode += `// Atmospheric noise layer
+loop(() => {
+    var pat = [
+        0,0,
+        0,0,0,
+        0,0,0,0,
+        1,1,1,1,
+        1,1,1,1,
+        0,0,0,
+        0,0,0,
+        1,0,0,
+        0,0,0,0,
+        1,1,1,1,
+        0,0,0,
+        0,0,0,
+        1,0,0,
+        1,0,0,
+        1,0,0,
+        1,0,0,
+        1,0,0];
+    for(var i = 0; i < pat.length; ++i) {
+        sleep(4);
+        if(pat[i]) {
+            noise.play(0,{duration:1, pan: -.8});
+            sleep(1);
+            noise.play(1,{duration:1, pan: .8});
+            sleep(3);
+        }
+        else
+            sleep(4);
+    }
+}, {name: 'noise'});
+
+`;
+
+    // Add pluck layer for additional texture
+    if (melody && melody.length > 0) {
+      dittyCode += `// Pluck layer for additional texture
+loop((lc) => {
+  var patterns = [
+    {p:[${this.generatePluckPattern(melody, 0)}], a:[${this.generatePluckAccentPattern(melody, 0)}]},
+    {p:[${this.generatePluckPattern(melody, 1)}], a:[${this.generatePluckAccentPattern(melody, 1)}]},
+    {p:[${this.generatePluckPattern(melody, 2)}], a:[${this.generatePluckAccentPattern(melody, 2)}]}
+  ];
+  var pattern = patterns[(lc>>1) % patterns.length];
+  
+  for(var i = 0; i < pattern.p.length; ++i) {
+    pluck.play(pattern.p[i], {duration: .1, cutoff: .2 + pattern.a[i] * .4});
+    sleep(1/3);
+  }
+}, { name: 'pluck' }).connect(echo.create());
 
 `;
     }
@@ -479,6 +576,434 @@ loop(() => {
     };
     
     return keyMap[key] || 'c';
+  }
+
+  // Generate advanced effects (echo, phaser, filters)
+  generateAdvancedEffects() {
+    return `
+// Advanced effects
+class Delayline {
+    constructor(n) {
+        this.n = ~~n;
+        this.p = 0;
+        this.lastOutput = 0;
+        this.data = new Float32Array(n);
+    }
+    clock(input) {
+        this.lastOutput = this.data[this.p];
+        this.data[this.p] = input;
+        if(++this.p >= this.n) {
+            this.p = 0;
+        }
+    }
+    tap(offset) {
+        var x = this.p - offset - 1;
+        x %= this.n;
+        if(x < 0) {
+            x += this.n;
+        }
+        return this.data[x];
+    }
+}
+
+input.echo = .8;
+const echo = filter.def(class {
+    constructor(options) {
+        this.lastOutput = [0, 0];
+        var time = 60 / ditty.bpm;
+        time /= 2;
+        var n = Math.floor(time / ditty.dt);
+        this.delay = [new Delayline(n), new Delayline(n)];
+        this.dside = new Delayline(500);
+        this.kfbl = .5;
+        this.kfbr = .7;
+    }
+    process(inv, options) {
+        this.dside.clock(inv[0]);
+        var new0 = (this.dside.lastOutput + this.delay[1].lastOutput) * this.kfbl;
+        var new1 = (inv[1] + this.delay[0].lastOutput) * this.kfbr;
+        this.lastOutput[0] = inv[0] + this.delay[0].lastOutput * input.echo;
+        this.lastOutput[1] = inv[1] + this.delay[1].lastOutput * input.echo;
+        this.delay[0].clock(new0);
+        this.delay[1].clock(new1);
+        var m = (this.lastOutput[0] + this.lastOutput[1])*.5;
+        var s = (this.lastOutput[0] - this.lastOutput[1])*.5;
+        s *= 2;
+        return [m+s, m-s];
+    }
+});
+
+var phaser = filter.def(class {
+    constructor(opt) {
+        this.stages = [[], []];
+        this.n = 4;
+        this.lastOut = [0, 0];
+        this.p = 0;
+        this.feedback = .5;
+        this.speed = .1;
+        this.mix = .5;
+        this.fc = .0;
+        for(var i = 0; i < this.n; ++i) {
+            this.stages[0].push({z: 0, ap: 0});
+            this.stages[1].push({z: 0, ap: 0});
+        }
+    }
+    __allpass(s, input, a) {
+        var z = input - a * s.z;
+        s.ap = s.z + a * z;
+        s.z = z;
+        return s.ap;
+    }
+    process(inv, opt) {
+        var vl = inv[0] + clamp(this.stages[0][this.n-1].ap * this.feedback, -1, 1);
+        var vr = inv[1] + clamp(this.stages[1][this.n-1].ap * this.feedback, -1, 1);
+        var lfo = (2**triangle(this.p))*.5-1.4;
+        this.p += ditty.dt * this.speed;
+        for(var i = 0; i < this.n; ++i) {
+            vl = this.__allpass(this.stages[0][i], vl, lfo);
+            vr = this.__allpass(this.stages[1][i], vr, lfo);
+        }
+        vl = lerp(inv[0], vl, this.mix);
+        vr = lerp(inv[1], vr, this.mix);
+        return [vl, vr];
+    }
+});
+
+const LOWPASS = 'lp';
+const BANDPASS = 'bp';
+const HIGHPASS = 'hp';
+class SVF {
+    constructor(opt) {
+        this.mode = opt ? opt.mode || LOWPASS : LOWPASS;
+        this.stages = opt ? opt.stages || 2 : 2;
+        this.states = [];
+        for(var i = 0; i < this.stages; ++i) {
+            this.states.push({lp:0, hp:0, bp:0});
+        }
+        this.kf = opt && opt.kf ? opt.kf : 0.1;
+        this.kq = opt && opt.kq ? opt.kq : 1.5;
+        this.run = (state, input, kf, kq) => {
+            var lp, hp, bp;
+            lp = state.lp + kf * state.bp;
+            hp = input - lp - kq * state.bp;
+            bp = state.bp + kf * hp;
+            state.lp = lp;
+            state.hp = hp;
+            state.bp = bp;
+        };
+    }
+    process(input) {
+        for(var i = 0, ni = this.states.length; i < ni; ++i) {
+            const state = this.states[i];
+            this.run(state, input, this.kf, this.kq);
+            this.run(state, input, this.kf, this.kq);
+            input = state[this.mode];
+        }
+        return input;
+    }
+}
+
+`;
+  }
+
+  // Generate custom synth definitions
+  generateCustomSynths() {
+    return `
+// Custom synth definitions
+class Tank {
+    constructor(opt) {
+        this.t = 0;
+    }
+    process(note, env, tick, opt) {
+        this.t += ditty.dt;
+        return Math.sin(this.t * Math.PI * 2 * opt.freq) * env.value;
+    }
+}
+
+class Analog {
+    constructor(opt) {
+        this.ops = [];
+        for(var i = 0; i < opt.nuni; ++i) {
+            var t = i / (opt.nuni-1);
+            this.ops.push({p:Math.random(), p2: 0, po: Math.random()-.5, fl: t, fr:1-t});
+        }
+        this.c = 100 + 100 * Math.random();
+        this.tshimmer = 0;
+        this.detune = opt.detune;
+        this.cutoff = opt.cutoff;
+        this.fa = opt.fa;
+        this.fd = opt.fd;
+    }
+    process(note, env, tick, opt) {
+        var vl=0, vr=0;
+        if(this.tshimmer >= 1) {
+            this.tshimmer -= 1;
+            for(var i = 0; i < this.ops.length; ++i) {
+                var op = this.ops[i];
+                op.po = Math.random()-.5;
+            }
+        }
+        this.tshimmer += ditty.dt * 10;
+        var cutoff = 4 + Math.min(1, tick / this.fa) * Math.exp(-Math.max(0, tick - this.fa) * this.fd) * this.cutoff * 100;
+        for(var i = 0; i < this.ops.length; ++i) {
+            var op = this.ops[i];
+            var fbase = midi_to_hz(note + op.po * this.detune) * ditty.dt;
+            var v = varsaw(op.p, cutoff * .008 / fbase);
+            vl += v * op.fl;
+            vr += v * op.fr;
+            op.p += fbase;
+            op.p2 += fbase * .5;
+        }
+        return [vl*env.value, vr*env.value];
+    }
+}
+
+// Enhanced percussion synths
+var quijada = synth.def(class {
+    constructor(opt) {
+        this.t = 0;
+    }
+    process(note, env, tick, opt) {
+        this.t += ditty.dt;
+        var p = ((this.t * 25 + .75) % 1) / 25; // pulses at 25Hz
+        var p2 = ((this.t * 25) % 1) / 25; // pulses at 25Hz
+        var v = Math.sin(p * Math.PI * 2 * 2700) * .6 ** Math.max(p * 2750 - 2, 0) * Math.exp(-this.t * 10); // ringing at 2.7kHz
+        v -= (Math.sin(p2 * Math.PI * 2 * 2700) * .6 ** Math.max(p2 * 2750 - 2, 0)) * .25 * Math.exp(-this.t * 20); // ringing at 2.7kHz
+        return v * env.value;
+    }
+}, { attack: .055, duration: 2.0 });
+
+// Realistic drum sounds
+var bassdrum = synth.def(Tank, {attack: .001, release: .165, duration: 0, freq: 65});
+var conga = synth.def(Tank, {attack: .001, release: .165, duration: 0, freq: 195, amp: .5});
+var smallbongo = synth.def(Tank, {attack: .001, release: .05, duration: 0, freq: 600, amp: .5});
+var largebongo = synth.def(Tank, {attack: .001, release: .08, duration: 0, freq: 400, amp: .5});
+var claves = synth.def(Tank, {attack: .001, release: .05, duration: 0, freq: 2200});
+var rimshot = synth.def(Tank, {attack: .0005, release: .01, duration: 0, freq: 1860, amp: .3});
+var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: .04, duration: 0, amp: .4});
+var cymbal = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: .2, duration: 0, amp: .4});
+
+// Enhanced bass synth
+const bass = synth.def(class {
+    constructor() {
+        this.p = Math.random();
+        this.c = 100 + 100 * Math.random();
+    }
+    process(note, env, tick, options) {
+        this.p += midi_to_hz(note) * ditty.dt;
+        return varsaw(this.p, 4 + (500 * Math.exp(-tick * 5) + 10 * env.value) * .1) * env.value;
+    }
+}, {attack:.01});
+
+// Analog2 synth for more complex interactions
+class Analog2 {
+    constructor(opt) {
+        if(!isFinite(opt.spread))
+            opt.spread = .8;
+        this.ops = [];
+        for(var i = 0; i < opt.nuni; ++i) {
+            var t = opt.nuni > 1 ? i / (opt.nuni-1) : .5;
+            var t2 = opt.nuni > 1 ? i / (opt.nuni-1) : 0;
+            this.ops.push({
+                pha1:Math.random(),
+                pha2: .5,
+                pitch: t2*2-1,
+                fl: lerp(.5,t,opt.spread),
+                fr: lerp(.5,1-t, opt.spread)
+            });
+        }
+        this.detune = opt.detune;
+        this.c = 100 + 100 * Math.random();
+        this.tshimmer = 0;
+    }
+    process(note, env, tick, opt) {
+        var vl=0, vr=0;
+        for(var i = 0; i < this.ops.length; ++i) {
+            var op = this.ops[i];
+            var fbase = midi_to_hz(note + op.pitch * this.detune) * ditty.dt;
+            var osc1 = varsaw(op.pha1, .3 / fbase);
+            var osc2 = varsaw(op.pha2, .5 / fbase);
+            vl += osc1 * op.fl;
+            vr += osc1 * op.fr;
+            op.pha1 += fbase * (1.001+osc2*20);
+            op.pha2 += fbase * .995;
+        }
+        return [vl*env.value, vr*env.value];
+    }
+}
+
+// Noise synth for atmospheric effects
+const noise = synth.def(class {
+    constructor(opt) {
+        this.flt = new SVF({kq: .7, mode: 'bp'});
+    }
+    process(note, env, tick, opt) {
+        this.flt.kf = 2 ** (-1+Math.min(1, tick * 2) * .7 - tick * .4);
+        return this.flt.process(Math.random() - .5) * env.value;
+    }
+}, {attack: .01, release: 8, cutoff: .3, amp: .12});
+
+// Melodic synths
+const pluck = synth.def(Analog, {nuni:2, cutoff: 0, fa: .01, fd: 30, detune: .3, amp: .3, release: .1, attack:.005});
+const synth1 = synth.def(Analog, {nuni:4, cutoff: .3, fa: .15, fd: 4, detune: .3, amp: .3});
+const synth2 = synth.def(Analog2, {nuni:2, attack: .001, cutoff: .3, fa: .15, fd: 4, detune: .1, amp: .25});
+const strings = synth.def(Analog, {nuni:4, attack: 1, release: 3, cutoff: .3, fa: .01, fd: 0, detune: .5, amp: .1});
+
+`;
+  }
+
+  // Generate melody pattern variations
+  generateMelodyPattern(melody, variation) {
+    if (!melody || melody.length === 0) {
+      return 'c4,e4,g4,c5';
+    }
+    
+    const notes = melody.slice(0, 4).map(note => this.convertNoteToDittytoy(note.note));
+    
+    // Create variations by transposing or changing notes
+    switch (variation) {
+      case 1:
+        return notes.map(note => this.transposeNote(note, 2)).join(',');
+      case 2:
+        return notes.map(note => this.transposeNote(note, -2)).join(',');
+      default:
+        return notes.join(',');
+    }
+  }
+
+  // Generate duration pattern for melody
+  generateDurationPattern(melody, variation) {
+    if (!melody || melody.length === 0) {
+      return '1,1,1,1';
+    }
+    
+    const durations = melody.slice(0, 4).map(note => this.convertDuration(note.duration));
+    
+    // Create variations by changing durations
+    switch (variation) {
+      case 1:
+        return durations.map(d => d * 0.8).join(',');
+      case 2:
+        return durations.map(d => d * 1.2).join(',');
+      default:
+        return durations.join(',');
+    }
+  }
+
+  // Generate bass pattern variations
+  generateBassPattern(bass, variation) {
+    if (!bass || bass.length === 0) {
+      return 'c2,g2';
+    }
+    
+    const notes = bass.slice(0, 2).map(note => this.convertNoteToDittytoy(note.note));
+    
+    // Create variations
+    switch (variation) {
+      case 1:
+        return notes.map(note => this.transposeNote(note, 5)).join(',');
+      case 2:
+        return notes.map(note => this.transposeNote(note, -5)).join(',');
+      default:
+        return notes.join(',');
+    }
+  }
+
+  // Generate bass duration pattern
+  generateBassDurationPattern(bass, variation) {
+    if (!bass || bass.length === 0) {
+      return '2,2';
+    }
+    
+    const durations = bass.slice(0, 2).map(note => this.convertDuration(note.duration));
+    
+    switch (variation) {
+      case 1:
+        return durations.map(d => d * 1.5).join(',');
+      case 2:
+        return durations.map(d => d * 0.75).join(',');
+      default:
+        return durations.join(',');
+    }
+  }
+
+  // Generate harmony pattern
+  generateHarmonyPattern(melody, variation) {
+    if (!melody || melody.length === 0) {
+      return 'c4,e4,g4';
+    }
+    
+    const notes = melody.slice(0, 3).map(note => this.convertNoteToDittytoy(note.note));
+    
+    // Create chord tones
+    switch (variation) {
+      case 1:
+        return notes.map(note => this.getChordTone(note, 3)).join(',');
+      case 2:
+        return notes.map(note => this.getChordTone(note, 5)).join(',');
+      default:
+        return notes.join(',');
+    }
+  }
+
+  // Transpose a note by semitones
+  transposeNote(note, semitones) {
+    const noteMap = {
+      'c': 0, 'cs': 1, 'd': 2, 'ds': 3, 'e': 4, 'f': 5, 'fs': 6, 'g': 7, 'gs': 8, 'a': 9, 'as': 10, 'b': 11
+    };
+    
+    const reverseMap = ['c', 'cs', 'd', 'ds', 'e', 'f', 'fs', 'g', 'gs', 'a', 'as', 'b'];
+    
+    const match = note.match(/^([a-gs]+)(\d+)$/);
+    if (!match) return note;
+    
+    const [, noteName, octave] = match;
+    const noteIndex = noteMap[noteName] || 0;
+    const newIndex = (noteIndex + semitones + 12) % 12;
+    const newOctave = parseInt(octave) + Math.floor((noteIndex + semitones) / 12);
+    
+    return `${reverseMap[newIndex]}${newOctave}`;
+  }
+
+  // Get chord tone (3rd or 5th)
+  getChordTone(note, interval) {
+    const intervals = { 3: 4, 5: 7 }; // Major 3rd = 4 semitones, Perfect 5th = 7 semitones
+    return this.transposeNote(note, intervals[interval] || 0);
+  }
+
+  // Generate pluck pattern
+  generatePluckPattern(melody, variation) {
+    if (!melody || melody.length === 0) {
+      return 'c5,c5,c4,c5,c4,c5,c4,c5,c5,c4,c5,c4';
+    }
+    
+    const notes = melody.slice(0, 12).map(note => this.convertNoteToDittytoy(note.note));
+    
+    // Create variations by transposing
+    switch (variation) {
+      case 1:
+        return notes.map(note => this.transposeNote(note, 2)).join(',');
+      case 2:
+        return notes.map(note => this.transposeNote(note, -2)).join(',');
+      default:
+        return notes.join(',');
+    }
+  }
+
+  // Generate pluck accent pattern
+  generatePluckAccentPattern(melody, variation) {
+    if (!melody || melody.length === 0) {
+      return '0,0,1,0,1,0,1,0,0,1,0,1';
+    }
+    
+    // Create accent patterns (0 = soft, 1 = accented)
+    const accentPatterns = [
+      '0,0,1,0,1,0,1,0,0,1,0,1',
+      '1,0,0,1,0,1,0,1,0,0,1,0',
+      '0,1,0,0,1,0,1,0,1,0,0,1'
+    ];
+    
+    return accentPatterns[variation] || accentPatterns[0];
   }
 
   // Compile and play dittytoy code

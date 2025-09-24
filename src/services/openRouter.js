@@ -12,7 +12,7 @@ export const generateMusicInstructions = async (prompt) => {
         'X-Title': 'Chordara Music App'
       },
       body: JSON.stringify({
-        model: 'openrouter/sonoma-sky-alpha',
+        model: 'meta-llama/llama-3.3-8b-instruct:free',
         messages: [
           {
             role: 'system',
