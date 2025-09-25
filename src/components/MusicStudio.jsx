@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { useNotification } from "../contexts/NotificationContext";
 import { generateMusicInstructions } from "../services/openRouter";
 import {
   generateMelody,
@@ -18,6 +19,7 @@ import SEO from "./SEO";
 const MusicStudio = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
   const [prompt, setPrompt] = useState("");
   const [instructions, setInstructions] = useState(null);
   const [patterns, setPatterns] = useState(null);
@@ -52,11 +54,28 @@ const MusicStudio = () => {
       setLoading(true);
       setError("");
 
+      // Clean up previous song state
+      console.log("🎵 Cleaning up previous song state...");
+
+      // Stop any current playback
+      dittytoyService.stop();
+
       // Reset DittyBoy service for new generation
       console.log("🎵 Resetting DittyBoy service for new generation...");
       dittytoyService.reset();
 
+      // Clear previous patterns and instructions
+      setPatterns(null);
+      setInstructions(null);
+      setSavedTrackId(null);
+      setSaving(false);
+      setDownloading(false);
+
+      // Clear any previous errors
+      setError("");
+
       // Generate AI instructions
+      console.log("🎵 Generating new music instructions...");
       const aiInstructions = await generateMusicInstructions(prompt);
       setInstructions(aiInstructions);
 
@@ -77,13 +96,19 @@ const MusicStudio = () => {
 
       setPatterns(generatedPatterns);
 
-      // Auto-save the track (disabled temporarily to fix recorder conflicts)
+      // Auto-save disabled - user must manually save tracks
       console.log(
-        "🎵 Auto-save disabled - use Export button in Music Player instead"
+        "🎵 New music generated successfully - use Save button to save track"
       );
-      // await autoSaveTrack(generatedPatterns);
+
+      // Show success notification
+      showSuccess(
+        "New music generated successfully! You can now play, save, or download it."
+      );
     } catch (err) {
+      console.error("Error generating music:", err);
       setError("Failed to generate music: " + err.message);
+      showError("Failed to generate music: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -130,10 +155,10 @@ const MusicStudio = () => {
       console.log("🎵 Track saved with ID:", docRef.id);
 
       setSavedTrackId(docRef.id);
-      alert("Track automatically saved to your library!");
+      showSuccess("Track automatically saved to your library!");
     } catch (error) {
       console.error("Auto-save failed:", error);
-      alert("Failed to auto-save track, but you can still play it.");
+      showWarning("Failed to auto-save track, but you can still play it.");
     } finally {
       setSaving(false);
     }
@@ -163,56 +188,21 @@ const MusicStudio = () => {
   };
 
   const handlePlay = async () => {
-    if (patterns && currentUser) {
+    if (patterns) {
       try {
-        console.log("🎵 Starting music playback with recording...");
-
-        // Use the new recording functionality
-        const savedTrack = await dittytoyService.playMusicWithRecording(
-          patterns,
-          patterns.instructions,
-          currentUser.uid
-        );
-
-        if (savedTrack) {
-          alert(`Track saved successfully! Title: ${savedTrack.title}`);
-        }
-      } catch (error) {
-        console.error("Error playing and saving music:", error);
-
-        // Try to recover by resetting DittyBoy and using silent export
-        try {
-          console.log("🎵 Attempting recovery with silent export...");
-          dittytoyService.reset();
-          await dittytoyService.initialize();
-
-          // Try playing without recording as fallback
-          await dittytoyService.playMusic(patterns, patterns.instructions);
-
-          // Also save the track silently
-          const silentTrack = await dittytoyService.silentExport(
-            patterns,
-            patterns.instructions,
-            currentUser.uid,
-            `Recovery Track - ${new Date().toLocaleString()}`
-          );
-
-          alert(
-            `Music is playing and track saved silently! Title: ${silentTrack.title}`
-          );
-        } catch (recoveryError) {
-          console.error("Recovery failed:", recoveryError);
-          alert("Error playing music. Please refresh the page and try again.");
-        }
-      }
-    } else if (patterns) {
-      // Fallback to regular play without recording
-      try {
+        console.log("🎵 Starting music playback...");
+        // Just play the music without any automatic saving
         await dittytoyService.playMusic(patterns, patterns.instructions);
+        console.log("🎵 Music playback started successfully");
       } catch (error) {
         console.error("Error playing music:", error);
-        alert("Error playing music. Please try again.");
+        console.log(
+          "🎵 Playback failed - user can use save button to save manually"
+        );
+        // Don't show alerts, just log to console for development
       }
+    } else {
+      console.log("🎵 No patterns available to play");
     }
   };
 
@@ -234,13 +224,15 @@ const MusicStudio = () => {
         trackName: defaultName,
       });
     } else {
-      alert("Please generate music first and make sure you're logged in.");
+      showWarning(
+        "Please generate music first and make sure you're logged in."
+      );
     }
   };
 
   const handleSaveConfirm = async () => {
     if (!trackName.trim()) {
-      alert("Please enter a track name.");
+      showWarning("Please enter a track name.");
       return;
     }
 
@@ -266,11 +258,11 @@ const MusicStudio = () => {
 
       if (savedTrack) {
         setSavedTrackId(savedTrack.id);
-        alert(`Track saved successfully! Title: ${savedTrack.title}`);
+        showSuccess(`Track saved successfully! Title: ${savedTrack.title}`);
       }
     } catch (error) {
       console.error("Error saving track:", error);
-      alert("Error saving track. Please try again.");
+      showError("Error saving track. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -281,13 +273,15 @@ const MusicStudio = () => {
       setTrackName(`My Track - ${new Date().toLocaleDateString()}`);
       setShowDownloadModal(true);
     } else {
-      alert("Please generate music first and make sure you're logged in.");
+      showWarning(
+        "Please generate music first and make sure you're logged in."
+      );
     }
   };
 
   const handleDownloadConfirm = async () => {
     if (!trackName.trim()) {
-      alert("Please enter a track name.");
+      showWarning("Please enter a track name.");
       return;
     }
 
@@ -312,23 +306,31 @@ const MusicStudio = () => {
 
       console.log("🎵 Track exported for download:", savedTrack);
 
-      if (savedTrack && dittytoyService.recordedAudio) {
+      if (
+        savedTrack &&
+        (savedTrack.audioBlob || dittytoyService.recordedAudio)
+      ) {
         // Download the recorded audio using the service method
+        console.log("🎵 Triggering download...");
         dittytoyService.downloadTrack(
           savedTrack,
           `${trackName.trim()}.${selectedFormat}`,
           selectedFormat
         );
-        alert(
+
+        // Restore playback capability after download
+        await dittytoyService.restorePlayback();
+
+        showSuccess(
           `Track downloaded successfully! Format: ${selectedFormat.toUpperCase()}`
         );
       } else {
         console.error("No recorded audio available for download");
-        alert("Failed to generate audio for download. Please try again.");
+        showError("Failed to generate audio for download. Please try again.");
       }
     } catch (error) {
       console.error("Error downloading track:", error);
-      alert("Error downloading track. Please try again.");
+      showError("Error downloading track. Please try again.");
     } finally {
       setDownloading(false);
     }

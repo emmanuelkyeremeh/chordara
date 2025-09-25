@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { useNotification } from "../contexts/NotificationContext";
 import { deleteAudioFromCloudinary } from "../services/cloudinary";
 import dittytoyService from "../services/dittytoyService";
 import Header from "./Header";
@@ -23,6 +24,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
 
   useEffect(() => {
     if (!currentUser) {
@@ -91,7 +93,7 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error("Error playing track:", error);
-      alert("Error playing track. Please try again.");
+      showError("Error playing track. Please try again.");
     }
   };
 
@@ -107,10 +109,10 @@ const Dashboard = () => {
     try {
       // Use Dittytoy service to delete track
       await dittytoyService.deleteTrack(trackId, cloudinaryPublicId);
-      alert("Track deleted successfully!");
+      showSuccess("Track deleted successfully!");
     } catch (error) {
       console.error("Error deleting track:", error);
-      alert("Failed to delete track. Please try again.");
+      showError("Failed to delete track. Please try again.");
     }
   };
 
@@ -123,7 +125,7 @@ const Dashboard = () => {
 
   const handleDownloadTrack = async (track) => {
     if (track.isSilentExport) {
-      alert(
+      showWarning(
         "This track was saved as data only and cannot be downloaded as audio. Use the Studio to generate and download audio files."
       );
       return;
@@ -139,8 +141,9 @@ const Dashboard = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      showSuccess(`Downloaded ${track.title || "untitled"}`);
     } else {
-      alert("Download URL not available for this track.");
+      showError("Download URL not available for this track.");
     }
   };
 

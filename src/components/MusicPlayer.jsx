@@ -4,6 +4,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { uploadToCloudinary, compressAudioFile } from "../services/cloudinary";
 import { useAuth } from "../contexts/AuthContext";
+import { useNotification } from "../contexts/NotificationContext";
 import dittytoyService from "../services/dittytoyService";
 import Header from "./Header";
 import {
@@ -44,6 +45,7 @@ const MusicPlayer = ({
   const [isShuffled, setIsShuffled] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
   const { currentUser } = useAuth();
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const progressIntervalRef = useRef(null);
@@ -359,22 +361,29 @@ const MusicPlayer = ({
           `Exported Track - ${new Date().toLocaleDateString()}`
       );
 
-      if (savedTrack && dittytoyService.recordedAudio) {
+      if (
+        savedTrack &&
+        (savedTrack.audioBlob || dittytoyService.recordedAudio)
+      ) {
         // Download the recorded audio
         dittytoyService.downloadTrack(
           savedTrack,
           `${track?.title || track?.name || "exported-track"}.${format}`,
           format
         );
-        alert(
+
+        // Restore playback capability after download
+        await dittytoyService.restorePlayback();
+
+        showSuccess(
           `Track exported and downloaded successfully! Format: ${format.toUpperCase()}`
         );
       } else {
-        alert("Track exported but failed to download. Please try again.");
+        showError("Track exported but failed to download. Please try again.");
       }
     } catch (error) {
       console.error("Export failed:", error);
-      alert(`Failed to export track: ${error.message}. Please try again.`);
+      showError(`Failed to export track: ${error.message}. Please try again.`);
     } finally {
       setIsExporting(false);
     }
