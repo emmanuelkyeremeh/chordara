@@ -19,7 +19,8 @@ import SEO from "./SEO";
 const MusicStudio = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+  const { showSuccess, showError, showWarning, showInfo, confirm } =
+    useNotification();
   const [prompt, setPrompt] = useState("");
   const [instructions, setInstructions] = useState(null);
   const [patterns, setPatterns] = useState(null);
@@ -164,12 +165,18 @@ const MusicStudio = () => {
     }
   };
 
-  const handleDiscardTrack = () => {
-    if (
-      window.confirm(
-        "Are you sure you want to discard this track? It will be lost forever."
-      )
-    ) {
+  const handleDiscardTrack = async () => {
+    const confirmed = await confirm(
+      "Discard Current Track",
+      "Are you sure you want to discard this track? It will be lost forever.",
+      {
+        confirmText: "Discard",
+        cancelText: "Keep Track",
+        confirmType: "danger",
+      }
+    );
+
+    if (confirmed) {
       // Clean up all state
       setPatterns(null);
       setInstructions(null);

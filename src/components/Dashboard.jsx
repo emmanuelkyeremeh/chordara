@@ -24,7 +24,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { currentUser } = useAuth();
-  const { showSuccess, showError, showWarning, showInfo } = useNotification();
+  const { showSuccess, showError, showWarning, showInfo, confirm } =
+    useNotification();
 
   useEffect(() => {
     if (!currentUser) {
@@ -98,11 +99,17 @@ const Dashboard = () => {
   };
 
   const handleDeleteTrack = async (trackId, cloudinaryPublicId) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this track? This action cannot be undone."
-      )
-    ) {
+    const confirmed = await confirm(
+      "Delete Track",
+      "Are you sure you want to delete this track? This action cannot be undone.",
+      {
+        confirmText: "Delete",
+        cancelText: "Cancel",
+        confirmType: "danger",
+      }
+    );
+
+    if (!confirmed) {
       return;
     }
 

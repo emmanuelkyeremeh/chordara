@@ -23,6 +23,8 @@ class DittytoyService {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.currentDittyCode = null; // Store current DittyBoy code for restart
+    this.currentPatterns = null; // Store current patterns for playback restoration
+    this.currentInstructions = null; // Store current instructions for playback restoration
   }
 
   async initialize() {
@@ -1813,16 +1815,49 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
 
   // Play the generated music
   async playMusic(patterns, instructions) {
-    if (!this.isInitialized) {
+    console.log('🎵 Starting music playback...', { hasPatterns: !!patterns, hasInstructions: !!instructions });
+    
+    if (!this.isInitialized || !this.dittytoy) {
+      console.log('🎵 Dittytoy not initialized, initializing...');
       await this.initialize();
     }
 
     try {
       const dittyCode = this.generateDittytoyCode(patterns, instructions);
+      
+      // Store patterns and instructions for potential restoration
+      this.currentPatterns = patterns;
+      this.currentInstructions = instructions;
+      
+      // Check if we need to recompile
+      if (this.currentDittyCode !== dittyCode) {
+        console.log('🎵 New music detected, compiling...');
+        await this.dittytoy.compile(dittyCode);
+        this.currentDittyCode = dittyCode;
+      } else {
+        console.log('🎵 Using existing compiled music');
+      }
+      
       await this.playDittytoyCode(dittyCode, instructions.duration || 60, patterns, instructions);
+      console.log('🎵 Music playback started successfully');
     } catch (error) {
       console.error('Error playing music:', error);
-      throw error;
+      // Try to recover by reinitializing
+      console.log('🎵 Playback failed, attempting recovery...');
+      try {
+        await this.dispose();
+        await this.initialize();
+        const dittyCode = this.generateDittytoyCode(patterns, instructions);
+        await this.dittytoy.compile(dittyCode);
+        this.currentDittyCode = dittyCode;
+        this.currentPatterns = patterns;
+        this.currentInstructions = instructions;
+        await this.playDittytoyCode(dittyCode, instructions.duration || 60, patterns, instructions);
+        console.log('🎵 Music playback recovered successfully');
+      } catch (recoveryError) {
+        console.error('Recovery also failed:', recoveryError);
+        throw error;
+      }
     }
   }
 
@@ -1846,24 +1881,40 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
   // Pause playback
   pause() {
     if (this.dittytoy && this.isPlaying && !this.isPaused) {
-      this.dittytoy.pause();
-      this.isPaused = true;
-      console.log('🎵 Playback paused');
+      try {
+        this.dittytoy.pause();
+        this.isPaused = true;
+        this.isPlaying = false;
+        console.log(`🎵 Playback paused at ${this.currentTime.toFixed(2)}s`);
+      } catch (error) {
+        console.error('Error pausing playback:', error);
+      }
     }
   }
 
   // Resume playback
   async resume() {
-    if (this.dittytoy && this.isPlaying && this.isPaused) {
+    if (this.dittytoy && this.isPaused) {
       try {
-        // Instead of resuming, restart the playback to avoid worker issues
-        console.log('🎵 Restarting playback instead of resuming to avoid worker errors');
+        console.log(`🎵 Attempting to resume playback from ${this.currentTime}s...`);
+        
+        // Try to use Dittytoy's native resume first
+        if (typeof this.dittytoy.resume === 'function') {
+          this.dittytoy.resume();
+          this.isPlaying = true;
+          this.isPaused = false;
+          console.log('🎵 Playback resumed successfully');
+          return;
+        }
+        
+        // Fallback: restart from current position
+        console.log('🎵 Native resume not available, restarting from current position...');
         this.stop();
         
         // Wait a moment for cleanup
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Reinitialize and play from the beginning
+        // Reinitialize and play from current position
         this.isInitialized = false;
         await this.initialize();
         
@@ -2345,6 +2396,10 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
       // Don't save the track - just prepare for download
       console.log('🎵 Track prepared for download (not saved)');
       
+      // Store the current patterns and instructions for potential playback restoration
+      this.currentPatterns = patterns;
+      this.currentInstructions = instructions;
+      
       // Return a simple object with the audio file ready for download
       return {
         id: 'download-' + Date.now(),
@@ -2418,6 +2473,8 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
     
     // Clear any existing dittytoy code
     this.currentDittyCode = null;
+    this.currentPatterns = null;
+    this.currentInstructions = null;
     
     console.log('🎵 DittytoyService reset complete');
   }
@@ -2427,18 +2484,50 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
     console.log('🎵 Restoring playback capability...');
     
     try {
-      // Re-initialize Dittytoy if needed
-      if (!this.isInitialized || !this.dittytoy) {
-        console.log('🎵 Re-initializing Dittytoy for playback...');
-        await this.initialize();
+      // Stop any current playback first
+      this.stop();
+      
+      // Clear download-related state
+      this.recordedAudio = null;
+      this.isRecording = false;
+      
+      // Re-initialize Dittytoy completely
+      console.log('🎵 Re-initializing Dittytoy for playback...');
+      this.isInitialized = false;
+      await this.initialize();
+      
+      // Recompile the current dittytoy code if we have it
+      if (this.currentDittyCode) {
+        console.log('🎵 Recompiling current music for playback...');
+        await this.dittytoy.compile(this.currentDittyCode);
+        console.log('🎵 Music recompiled successfully');
+      } else if (this.currentPatterns && this.currentInstructions) {
+        console.log('🎵 Regenerating dittytoy code from stored patterns...');
+        const dittyCode = this.generateDittytoyCode(this.currentPatterns, this.currentInstructions);
+        await this.dittytoy.compile(dittyCode);
+        this.currentDittyCode = dittyCode;
+        console.log('🎵 Music regenerated and compiled successfully');
       }
       
-      // Clear any download-related audio
-      this.recordedAudio = null;
-      
-      console.log('🎵 Playback capability restored');
+      console.log('🎵 Playback capability restored - ready to play');
     } catch (error) {
       console.error('Error restoring playback:', error);
+      // If restore fails, try a complete reset
+      console.log('🎵 Restore failed, attempting complete reset...');
+      try {
+        await this.dispose();
+        await this.initialize();
+        if (this.currentDittyCode) {
+          await this.dittytoy.compile(this.currentDittyCode);
+        } else if (this.currentPatterns && this.currentInstructions) {
+          const dittyCode = this.generateDittytoyCode(this.currentPatterns, this.currentInstructions);
+          await this.dittytoy.compile(dittyCode);
+          this.currentDittyCode = dittyCode;
+        }
+        console.log('🎵 Complete reset successful');
+      } catch (resetError) {
+        console.error('Complete reset also failed:', resetError);
+      }
     }
   }
 

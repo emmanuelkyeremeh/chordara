@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import Notification from "../components/Notification";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const NotificationContext = createContext();
 
@@ -15,6 +16,7 @@ export const useNotification = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const addNotification = useCallback(
     (message, type = "info", duration = 3000) => {
@@ -65,6 +67,26 @@ export const NotificationProvider = ({ children }) => {
     [addNotification]
   );
 
+  const confirm = useCallback((title, message, options = {}) => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        title,
+        message,
+        confirmText: options.confirmText || "Confirm",
+        cancelText: options.cancelText || "Cancel",
+        confirmType: options.confirmType || "danger",
+        onConfirm: () => {
+          setConfirmDialog(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog(null);
+          resolve(false);
+        },
+      });
+    });
+  }, []);
+
   const value = {
     addNotification,
     removeNotification,
@@ -72,6 +94,7 @@ export const NotificationProvider = ({ children }) => {
     showError,
     showWarning,
     showInfo,
+    confirm,
   };
 
   return (
@@ -88,6 +111,18 @@ export const NotificationProvider = ({ children }) => {
           />
         ))}
       </div>
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={!!confirmDialog}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          cancelText={confirmDialog.cancelText}
+          confirmType={confirmDialog.confirmType}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
+      )}
     </NotificationContext.Provider>
   );
 };
