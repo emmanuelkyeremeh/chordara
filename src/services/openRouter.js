@@ -78,7 +78,7 @@ Return a JSON object with these fields:
 
 - tempo: number (60-200 BPM) - Choose based on mood and style
 - key: string - Choose from: "C major", "G major", "D major", "A major", "E major", "F major", "Bb major", "A minor", "E minor", "B minor", "F# minor", "C# minor", "F minor", "C minor", "G minor", "D minor"
-- style: string - Be specific: "electronic", "ambient", "jazz", "rock", "classical", "pop", "blues", "funk", "reggae", "hip-hop", "folk", "country", "metal", "punk", "disco", "house", "techno", "dubstep", "trap", "lo-fi", "chill", "experimental"
+- style: string - Be specific: "electronic", "ambient", "jazz", "rock", "classical", "pop", "blues", "funk", "reggae", "hip-hop", "folk", "country", "metal", "punk", "disco", "house", "techno", "tech-house", "minimal", "deep-techno", "industrial", "detroit-techno", "berlin-techno", "acid-techno", "progressive-techno", "dubstep", "trap", "lo-fi", "chill", "experimental"
 - mood: string - Be descriptive: "energetic", "melancholic", "uplifting", "calm", "aggressive", "peaceful", "happy", "sad", "dramatic", "relaxed", "nostalgic", "mysterious", "romantic", "triumphant", "contemplative", "playful", "intense", "dreamy", "dark", "bright"
 - instruments: array of strings - REQUIRED field with instruments like ["synth", "drums", "bass", "piano", "strings", "guitar"]
 - chordProgression: array of 4-8 chord names - Use sophisticated progressions like ["Cmaj7", "Am7", "Fmaj7", "G7"] or ["Dm", "Bb", "F", "C"] or ["Em", "C", "G", "D"]
@@ -101,6 +101,9 @@ EXAMPLES:
 - "upbeat electronic dance music" → tempo: 128, style: "house", mood: "energetic", chordProgression: ["Fmaj7", "Dm7", "Bb", "C"]
 - "sad piano ballad" → tempo: 70, style: "classical", mood: "melancholic", chordProgression: ["Am", "F", "C", "G"]
 - "mysterious ambient soundscape" → tempo: 60, style: "ambient", mood: "mysterious", chordProgression: ["Dm", "Bb", "F", "C"]
+- "dark techno track" → tempo: 138, style: "techno", mood: "dark", chordProgression: ["Am", "F", "C", "G"], drumPattern: "four-on-floor"
+- "minimal techno" → tempo: 125, style: "minimal", mood: "hypnotic", chordProgression: ["Dm", "Bb", "F", "C"], drumPattern: "minimal"
+- "industrial techno" → tempo: 140, style: "industrial", mood: "aggressive", chordProgression: ["Em", "C", "G", "D"], drumPattern: "complex"
 
 Be creative and make each song unique!
 
