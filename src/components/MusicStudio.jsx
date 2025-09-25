@@ -3,10 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  generateMusicInstructions,
-  generateAIPatterns,
-} from "../services/openRouter";
+import { generateMusicInstructions } from "../services/openRouter";
 import {
   generateMelody,
   generateBassLine,
@@ -26,8 +23,13 @@ const MusicStudio = () => {
   const [patterns, setPatterns] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [savedTrackId, setSavedTrackId] = useState(null);
+  const [selectedFormat, setSelectedFormat] = useState("mp3");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [trackName, setTrackName] = useState("");
 
   useEffect(() => {
     // Initialize Dittytoy when component mounts
@@ -50,21 +52,21 @@ const MusicStudio = () => {
       setLoading(true);
       setError("");
 
+      // Reset DittyBoy service for new generation
+      console.log("🎵 Resetting DittyBoy service for new generation...");
+      dittytoyService.reset();
+
       // Generate AI instructions
       const aiInstructions = await generateMusicInstructions(prompt);
       setInstructions(aiInstructions);
 
-      // Generate AI-powered musical patterns
-      console.log("🎵 Generating AI-powered patterns...");
-      const aiPatterns = await generateAIPatterns(aiInstructions);
-
-      // Use AI patterns if available, otherwise fall back to brain service
-      const melody =
-        aiPatterns.melodyPattern || generateMelody(aiInstructions, 60);
-      const bass =
-        aiPatterns.bassPattern || generateBassLine(aiInstructions, 60);
-      const drums =
-        aiPatterns.drumPattern || generateDrumPattern(aiInstructions, 60);
+      // Generate musical patterns using enhanced brain.js service
+      console.log(
+        "🎵 Generating patterns with enhanced brain.js neural networks..."
+      );
+      const melody = generateMelody(aiInstructions, 60);
+      const bass = generateBassLine(aiInstructions, 60);
+      const drums = generateDrumPattern(aiInstructions, 60);
 
       const generatedPatterns = {
         melody,
@@ -143,17 +145,28 @@ const MusicStudio = () => {
         "Are you sure you want to discard this track? It will be lost forever."
       )
     ) {
+      // Clean up all state
       setPatterns(null);
       setInstructions(null);
       setPrompt("");
       setSavedTrackId(null);
+      setSaving(false);
+      setDownloading(false);
+      setError("");
+
+      // Stop and reset DittyBoy service
       dittytoyService.stop();
+      dittytoyService.reset();
+
+      console.log("🎵 Track discarded and service reset for new generation");
     }
   };
 
   const handlePlay = async () => {
     if (patterns && currentUser) {
       try {
+        console.log("🎵 Starting music playback with recording...");
+
         // Use the new recording functionality
         const savedTrack = await dittytoyService.playMusicWithRecording(
           patterns,
@@ -166,16 +179,159 @@ const MusicStudio = () => {
         }
       } catch (error) {
         console.error("Error playing and saving music:", error);
-        alert("Error playing music. Please try again.");
+
+        // Try to recover by resetting DittyBoy and using silent export
+        try {
+          console.log("🎵 Attempting recovery with silent export...");
+          dittytoyService.reset();
+          await dittytoyService.initialize();
+
+          // Try playing without recording as fallback
+          await dittytoyService.playMusic(patterns, patterns.instructions);
+
+          // Also save the track silently
+          const silentTrack = await dittytoyService.silentExport(
+            patterns,
+            patterns.instructions,
+            currentUser.uid,
+            `Recovery Track - ${new Date().toLocaleString()}`
+          );
+
+          alert(
+            `Music is playing and track saved silently! Title: ${silentTrack.title}`
+          );
+        } catch (recoveryError) {
+          console.error("Recovery failed:", recoveryError);
+          alert("Error playing music. Please refresh the page and try again.");
+        }
       }
     } else if (patterns) {
       // Fallback to regular play without recording
-      await dittytoyService.playMusic(patterns, patterns.instructions);
+      try {
+        await dittytoyService.playMusic(patterns, patterns.instructions);
+      } catch (error) {
+        console.error("Error playing music:", error);
+        alert("Error playing music. Please try again.");
+      }
     }
   };
 
   const handleStop = () => {
     dittytoyService.stop();
+  };
+
+  const handleSave = () => {
+    console.log("🎵 Save button clicked", {
+      patterns: !!patterns,
+      currentUser: !!currentUser,
+    });
+    if (patterns && currentUser) {
+      const defaultName = `My Track - ${new Date().toLocaleDateString()}`;
+      setTrackName(defaultName);
+      setShowSaveModal(true);
+      console.log("🎵 Save modal should be showing now", {
+        showSaveModal: true,
+        trackName: defaultName,
+      });
+    } else {
+      alert("Please generate music first and make sure you're logged in.");
+    }
+  };
+
+  const handleSaveConfirm = async () => {
+    if (!trackName.trim()) {
+      alert("Please enter a track name.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setShowSaveModal(false);
+      console.log("🎵 Starting track save...", {
+        trackName: trackName.trim(),
+        hasPatterns: !!patterns,
+        hasInstructions: !!patterns.instructions,
+        userId: currentUser.uid,
+      });
+
+      // Use silent export to save track data
+      const savedTrack = await dittytoyService.silentExport(
+        patterns,
+        patterns.instructions,
+        currentUser.uid,
+        trackName.trim()
+      );
+
+      console.log("🎵 Track saved successfully:", savedTrack);
+
+      if (savedTrack) {
+        setSavedTrackId(savedTrack.id);
+        alert(`Track saved successfully! Title: ${savedTrack.title}`);
+      }
+    } catch (error) {
+      console.error("Error saving track:", error);
+      alert("Error saving track. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (patterns && currentUser) {
+      setTrackName(`My Track - ${new Date().toLocaleDateString()}`);
+      setShowDownloadModal(true);
+    } else {
+      alert("Please generate music first and make sure you're logged in.");
+    }
+  };
+
+  const handleDownloadConfirm = async () => {
+    if (!trackName.trim()) {
+      alert("Please enter a track name.");
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      setShowDownloadModal(false);
+      console.log("🎵 Starting track download...", {
+        trackName: trackName.trim(),
+        format: selectedFormat,
+        hasPatterns: !!patterns,
+        hasInstructions: !!patterns.instructions,
+        userId: currentUser.uid,
+      });
+
+      // Generate and record audio for download
+      const savedTrack = await dittytoyService.exportTrack(
+        patterns,
+        patterns.instructions,
+        currentUser.uid,
+        trackName.trim()
+      );
+
+      console.log("🎵 Track exported for download:", savedTrack);
+
+      if (savedTrack && dittytoyService.recordedAudio) {
+        // Download the recorded audio using the service method
+        dittytoyService.downloadTrack(
+          savedTrack,
+          `${trackName.trim()}.${selectedFormat}`,
+          selectedFormat
+        );
+        alert(
+          `Track downloaded successfully! Format: ${selectedFormat.toUpperCase()}`
+        );
+      } else {
+        console.error("No recorded audio available for download");
+        alert("Failed to generate audio for download. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error downloading track:", error);
+      alert("Error downloading track. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -268,9 +424,13 @@ const MusicStudio = () => {
             <div className="player-header">
               <h3>Your Generated Track</h3>
               <div className="player-actions">
-                {saving && (
-                  <span className="saving-indicator">💾 Auto-saving...</span>
-                )}
+                <button
+                  onClick={handleSave}
+                  className="save-button"
+                  disabled={!patterns || !currentUser || saving}
+                >
+                  {saving ? "💾 Saving..." : "💾 Save Track"}
+                </button>
                 <button onClick={handleDiscardTrack} className="discard-button">
                   🗑️ Discard Track
                 </button>
@@ -282,6 +442,88 @@ const MusicStudio = () => {
               onStop={handleStop}
               showRecordButton={false}
             />
+          </div>
+        )}
+
+        {/* Save Track Modal */}
+        {showSaveModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal">
+              <h3>Save Track</h3>
+              <p>Enter a name for your track:</p>
+              <input
+                type="text"
+                value={trackName}
+                onChange={(e) => setTrackName(e.target.value)}
+                placeholder="Track name"
+                className="modal-input"
+                autoFocus
+              />
+              <div className="modal-actions">
+                <button
+                  onClick={() => {
+                    console.log("🎵 Cancel button clicked");
+                    setShowSaveModal(false);
+                  }}
+                  className="modal-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveConfirm}
+                  className="modal-confirm"
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save Track"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Download Track Modal */}
+        {showDownloadModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal">
+              <h3>Download Track</h3>
+              <p>Enter a name for your download:</p>
+              <input
+                type="text"
+                value={trackName}
+                onChange={(e) => setTrackName(e.target.value)}
+                placeholder="Track name"
+                className="modal-input"
+                autoFocus
+              />
+              <div className="format-selection">
+                <label>Format:</label>
+                <select
+                  value={selectedFormat}
+                  onChange={(e) => setSelectedFormat(e.target.value)}
+                  className="modal-select"
+                >
+                  <option value="mp3">MP3</option>
+                  <option value="wav">WAV</option>
+                  <option value="webm">WebM</option>
+                  <option value="ogg">OGG</option>
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button
+                  onClick={() => setShowDownloadModal(false)}
+                  className="modal-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDownloadConfirm}
+                  className="modal-confirm"
+                  disabled={downloading}
+                >
+                  {downloading ? "Downloading..." : "Download Track"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

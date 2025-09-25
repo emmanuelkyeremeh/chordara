@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  generateMusicInstructions,
-  generateAIPatterns,
-} from "../services/openRouter";
+import { generateMusicInstructions } from "../services/openRouter";
 import {
   generateMelody,
   generateDrumPattern,
@@ -155,17 +152,13 @@ const MusicGenerator = ({ prompt, onGenerated }) => {
         `🎵 Starting music generation for ${parsed.duration}s track...`
       );
 
-      // Generate AI-powered musical patterns
-      console.log("🎵 Generating AI-powered patterns...");
-      const aiPatterns = await generateAIPatterns(parsed);
-
-      // Use AI patterns if available, otherwise fall back to brain service
-      const melody =
-        aiPatterns.melodyPattern || generateMelody(parsed, parsed.duration);
-      const drums =
-        aiPatterns.drumPattern || generateDrumPattern(parsed, parsed.duration);
-      const bass =
-        aiPatterns.bassPattern || generateBassLine(parsed, parsed.duration);
+      // Generate musical patterns using enhanced brain.js service
+      console.log(
+        "🎵 Generating patterns with enhanced brain.js neural networks..."
+      );
+      const melody = generateMelody(parsed, parsed.duration);
+      const drums = generateDrumPattern(parsed, parsed.duration);
+      const bass = generateBassLine(parsed, parsed.duration);
 
       console.log("🎵 Generated patterns:", {
         melody: melody.length,

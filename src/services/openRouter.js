@@ -1,6 +1,36 @@
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Helper function to format moderation error messages
+// OpenRouter 403 errors include ModerationErrorMetadata with:
+// - reasons: string[] - Why the input was flagged
+// - flagged_input: string - The text segment that was flagged (max 100 chars)
+// - provider_name: string - The provider that requested moderation
+// - model_slug: string - The model that was being used
+const formatModerationError = (errorData) => {
+  const metadata = errorData.error?.metadata;
+  if (!metadata) {
+    return 'Content flagged by moderation system';
+  }
+  
+  const reasons = metadata.reasons || [];
+  const flaggedInput = metadata.flagged_input || '';
+  const providerName = metadata.provider_name || 'Unknown provider';
+  
+  let message = `Content moderation violation`;
+  if (reasons.length > 0) {
+    message += `: ${reasons.join(', ')}`;
+  }
+  if (flaggedInput) {
+    message += ` (flagged: "${flaggedInput}")`;
+  }
+  if (providerName) {
+    message += ` [${providerName}]`;
+  }
+  
+  return message;
+};
+
 // Helper function to extract JSON from various response formats
 const extractJSON = (content) => {
   // First, try to find JSON in markdown code blocks
@@ -123,7 +153,51 @@ IMPORTANT: Return ONLY valid JSON without any markdown formatting, explanations,
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
+      // Handle 403 errors specifically (moderation/content policy violations)
+      if (response.status === 403) {
+        try {
+          const errorData = await response.json();
+          console.error('🚫 OpenRouter 403 Error - Content Moderation:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData,
+            // Log moderation metadata if available
+            moderationMetadata: errorData.error?.metadata || null,
+            reasons: errorData.error?.metadata?.reasons || [],
+            flaggedInput: errorData.error?.metadata?.flagged_input || null,
+            providerName: errorData.error?.metadata?.provider_name || null,
+            modelSlug: errorData.error?.metadata?.model_slug || null
+          });
+          
+          // Log specific moderation reasons
+          if (errorData.error?.metadata?.reasons) {
+            console.error('🚫 Moderation Reasons:', errorData.error.metadata.reasons);
+          }
+          
+          // Log flagged input (truncated for safety)
+          if (errorData.error?.metadata?.flagged_input) {
+            console.error('🚫 Flagged Input:', errorData.error.metadata.flagged_input);
+          }
+          
+          throw new Error(formatModerationError(errorData));
+        } catch (parseError) {
+          console.error('🚫 OpenRouter 403 Error (failed to parse error response):', {
+            status: response.status,
+            statusText: response.statusText,
+            parseError: parseError.message
+          });
+          throw new Error(`OpenRouter 403 error: Content moderation violation`);
+        }
+      }
+      
+      // Handle other HTTP errors
+      console.error('🚫 OpenRouter API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url
+      });
+      
+      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -166,143 +240,6 @@ IMPORTANT: Return ONLY valid JSON without any markdown formatting, explanations,
   }
 };
 
-// Generate AI-powered musical patterns based on instructions
-export const generateAIPatterns = async (instructions) => {
-  try {
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Chordara Music App'
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-8b-instruct:free',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a music theory expert and composer. Generate specific musical patterns based on the given instructions.
-
-Return a JSON object with these fields:
-
-- melodyPattern: array of note objects with {note: "C4", duration: "4n", velocity: 0.8, time: 0}
-- bassPattern: array of note objects with {note: "C2", duration: "2n", velocity: 0.9, time: 0}
-- drumPattern: array of drum objects with {instrument: "kick", time: 0, velocity: 0.8}
-
-NOTES:
-- Use standard note names: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-- Octaves: 1-7 (e.g., C4 is middle C)
-- Durations: "1n" (whole), "2n" (half), "4n" (quarter), "8n" (eighth), "16n" (sixteenth)
-- Velocities: 0.1-1.0 (0.1 = very soft, 1.0 = very loud)
-- Time: position in beats (0, 0.5, 1, 1.5, etc.)
-- Drum instruments: "kick", "snare", "hihat", "openhat", "crash", "ride"
-
-Create patterns that:
-1. Match the specified style, mood, and tempo
-2. Use the provided chord progression
-3. Are musically coherent and interesting
-4. Have appropriate complexity for the style
-5. Include variations and musical interest
-
-Generate EXACTLY 8 notes for melody, 4 notes for bass, and 8 drum hits to ensure complete JSON.
-
-CRITICAL REQUIREMENTS:
-- Return ONLY valid JSON without any markdown formatting, explanations, or additional text
-- Ensure all arrays are properly closed with ]
-- Ensure all objects are properly closed with }
-- Do not truncate the response - keep it concise but complete
-- Test that your JSON is valid before returning it`
-          },
-          {
-            role: 'user',
-            content: `Generate musical patterns for:
-- Style: ${instructions.style}
-- Mood: ${instructions.mood}
-- Tempo: ${instructions.tempo} BPM
-- Key: ${instructions.key}
-- Chord Progression: ${JSON.stringify(instructions.chordProgression)}
-- Melody Style: ${instructions.melodyStyle}
-- Bass Style: ${instructions.bassStyle}
-- Drum Pattern: ${instructions.drumPattern}
-- Energy: ${instructions.energy}
-- Duration: ${instructions.duration} seconds`
-          }
-        ],
-        max_tokens: 1500,
-        temperature: 0.7,
-        top_p: 0.9
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    console.log('🎵 AI Patterns raw response:', content);
-    
-    // Extract JSON from the response
-    const jsonContent = extractJSON(content);
-    console.log('🎵 Extracted JSON:', jsonContent);
-    
-    try {
-      const parsed = validateAndFixJSON(jsonContent);
-      console.log('🎵 Parsed AI patterns:', parsed);
-      return parsed;
-    } catch (parseError) {
-      console.warn('Failed to parse AI patterns JSON:', parseError);
-      console.warn('Raw patterns content that failed to parse:', content);
-      // Return fallback patterns
-      return generateFallbackPatterns(instructions);
-    }
-  } catch (error) {
-    console.error('Error generating AI patterns:', error);
-    return generateFallbackPatterns(instructions);
-  }
-};
-
-// Generate fallback patterns when AI fails
-const generateFallbackPatterns = (instructions) => {
-  const { tempo, key, style, mood, chordProgression } = instructions;
-  
-  // Concise melody pattern (8 notes)
-  const melodyPattern = [
-    { note: "C4", duration: "4n", velocity: 0.8, time: 0 },
-    { note: "E4", duration: "4n", velocity: 0.7, time: 1 },
-    { note: "G4", duration: "4n", velocity: 0.8, time: 2 },
-    { note: "C5", duration: "4n", velocity: 0.9, time: 3 },
-    { note: "G4", duration: "4n", velocity: 0.7, time: 4 },
-    { note: "E4", duration: "4n", velocity: 0.8, time: 5 },
-    { note: "C4", duration: "4n", velocity: 0.9, time: 6 },
-    { note: "G4", duration: "4n", velocity: 0.8, time: 7 }
-  ];
-  
-  // Concise bass pattern (4 notes)
-  const bassPattern = [
-    { note: "C2", duration: "2n", velocity: 0.9, time: 0 },
-    { note: "G2", duration: "2n", velocity: 0.8, time: 2 },
-    { note: "C2", duration: "2n", velocity: 0.9, time: 4 },
-    { note: "G2", duration: "2n", velocity: 0.8, time: 6 }
-  ];
-  
-  // Concise drum pattern (8 hits)
-  const drumPattern = [
-    { instrument: "kick", time: 0, velocity: 0.9 },
-    { instrument: "hihat", time: 0.5, velocity: 0.6 },
-    { instrument: "snare", time: 1, velocity: 0.8 },
-    { instrument: "hihat", time: 1.5, velocity: 0.6 },
-    { instrument: "kick", time: 2, velocity: 0.9 },
-    { instrument: "hihat", time: 2.5, velocity: 0.6 },
-    { instrument: "snare", time: 3, velocity: 0.8 },
-    { instrument: "hihat", time: 3.5, velocity: 0.6 }
-  ];
-  
-  return {
-    melodyPattern,
-    bassPattern,
-    drumPattern
-  };
-};
+// Note: generateAIPatterns function removed - now using enhanced brain.js service
+// The enhanced brain.js neural networks provide superior pattern generation
+// with sophisticated musical features, phrase structure, and dittytoy optimization

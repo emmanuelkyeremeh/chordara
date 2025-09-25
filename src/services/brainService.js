@@ -1,69 +1,124 @@
 // Brain.js service for generating musical patterns optimized for Dittytoy
 import * as brain from 'brain.js';
 
-// Initialize neural networks for different musical elements
+// Enhanced neural networks with better architecture for complex music generation
 const melodyNet = new brain.NeuralNetwork({
-  hiddenLayers: [8, 6],
-  learningRate: 0.3
+  hiddenLayers: [16, 12, 8],
+  learningRate: 0.2,
+  activation: 'sigmoid'
 });
 
 const drumNet = new brain.NeuralNetwork({
-  hiddenLayers: [6, 4],
-  learningRate: 0.3
+  hiddenLayers: [12, 8, 6],
+  learningRate: 0.25,
+  activation: 'sigmoid'
 });
 
-// Enhanced training data for more diverse and complex music generation
+const bassNet = new brain.NeuralNetwork({
+  hiddenLayers: [10, 8, 6],
+  learningRate: 0.2,
+  activation: 'sigmoid'
+});
+
+// Enhanced training data with sophisticated musical patterns inspired by working dittytoy code
 const melodyTrainingData = [
-  // Electronic styles - more complex patterns
-  { input: { tempo: 0.8, style: 0.1, key: 0.1, mood: 0.9, complexity: 0.8 }, output: { note1: 0.2, note2: 0.4, note3: 0.6, note4: 0.8, note5: 0.3, note6: 0.7, note7: 0.1, note8: 0.9, note9: 0.5, note10: 0.2, note11: 0.8, note12: 0.4 } },
-  { input: { tempo: 0.9, style: 0.1, key: 0.3, mood: 0.7, complexity: 0.9 }, output: { note1: 0.1, note2: 0.3, note3: 0.7, note4: 0.9, note5: 0.2, note6: 0.8, note7: 0.4, note8: 0.6, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.7 } },
-  { input: { tempo: 0.7, style: 0.1, key: 0.5, mood: 0.5, complexity: 0.6 }, output: { note1: 0.4, note2: 0.6, note3: 0.2, note4: 0.8, note5: 0.5, note6: 0.1, note7: 0.9, note8: 0.3, note9: 0.7, note10: 0.4, note11: 0.2, note12: 0.8 } },
+  // Electronic/Techno styles - complex arpeggiated patterns
+  { input: { tempo: 0.8, style: 0.1, key: 0.1, mood: 0.9, complexity: 0.8, phrase: 0.1 }, output: { note1: 0.2, note2: 0.4, note3: 0.6, note4: 0.8, note5: 0.3, note6: 0.7, note7: 0.1, note8: 0.9, note9: 0.5, note10: 0.2, note11: 0.8, note12: 0.4, note13: 0.6, note14: 0.3, note15: 0.9, note16: 0.1 } },
+  { input: { tempo: 0.9, style: 0.1, key: 0.3, mood: 0.7, complexity: 0.9, phrase: 0.3 }, output: { note1: 0.1, note2: 0.3, note3: 0.7, note4: 0.9, note5: 0.2, note6: 0.8, note7: 0.4, note8: 0.6, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.7, note13: 0.5, note14: 0.2, note15: 0.8, note16: 0.4 } },
+  { input: { tempo: 0.7, style: 0.1, key: 0.5, mood: 0.5, complexity: 0.6, phrase: 0.5 }, output: { note1: 0.4, note2: 0.6, note3: 0.2, note4: 0.8, note5: 0.5, note6: 0.1, note7: 0.9, note8: 0.3, note9: 0.7, note10: 0.4, note11: 0.2, note12: 0.8, note13: 0.6, note14: 0.3, note15: 0.7, note16: 0.1 } },
   
-  // Jazz styles - more sophisticated
-  { input: { tempo: 0.6, style: 0.3, key: 0.7, mood: 0.8, complexity: 0.9 }, output: { note1: 0.3, note2: 0.7, note3: 0.5, note4: 0.1, note5: 0.8, note6: 0.2, note7: 0.6, note8: 0.4, note9: 0.9, note10: 0.1, note11: 0.5, note12: 0.7 } },
-  { input: { tempo: 0.5, style: 0.3, key: 0.9, mood: 0.6, complexity: 0.8 }, output: { note1: 0.6, note2: 0.2, note3: 0.8, note4: 0.4, note5: 0.1, note6: 0.9, note7: 0.3, note8: 0.7, note9: 0.4, note10: 0.8, note11: 0.2, note12: 0.6 } },
+  // Jazz styles - sophisticated voice leading and chromaticism
+  { input: { tempo: 0.6, style: 0.3, key: 0.7, mood: 0.8, complexity: 0.9, phrase: 0.2 }, output: { note1: 0.3, note2: 0.7, note3: 0.5, note4: 0.1, note5: 0.8, note6: 0.2, note7: 0.6, note8: 0.4, note9: 0.9, note10: 0.1, note11: 0.5, note12: 0.7, note13: 0.3, note14: 0.8, note15: 0.2, note16: 0.6 } },
+  { input: { tempo: 0.5, style: 0.3, key: 0.9, mood: 0.6, complexity: 0.8, phrase: 0.4 }, output: { note1: 0.6, note2: 0.2, note3: 0.8, note4: 0.4, note5: 0.1, note6: 0.9, note7: 0.3, note8: 0.7, note9: 0.4, note10: 0.8, note11: 0.2, note12: 0.6, note13: 0.9, note14: 0.1, note15: 0.5, note16: 0.7 } },
   
-  // Rock styles - more aggressive
-  { input: { tempo: 0.9, style: 0.5, key: 0.2, mood: 0.9, complexity: 0.7 }, output: { note1: 0.8, note2: 0.2, note3: 0.6, note4: 0.4, note5: 0.9, note6: 0.1, note7: 0.7, note8: 0.3, note9: 0.5, note10: 0.9, note11: 0.1, note12: 0.6 } },
-  { input: { tempo: 0.8, style: 0.5, key: 0.4, mood: 0.7, complexity: 0.8 }, output: { note1: 0.7, note2: 0.3, note3: 0.9, note4: 0.1, note5: 0.4, note6: 0.8, note7: 0.2, note8: 0.6, note9: 0.8, note10: 0.2, note11: 0.5, note12: 0.9 } },
+  // Rock styles - aggressive and driving patterns
+  { input: { tempo: 0.9, style: 0.5, key: 0.2, mood: 0.9, complexity: 0.7, phrase: 0.3 }, output: { note1: 0.8, note2: 0.2, note3: 0.6, note4: 0.4, note5: 0.9, note6: 0.1, note7: 0.7, note8: 0.3, note9: 0.5, note10: 0.9, note11: 0.1, note12: 0.6, note13: 0.8, note14: 0.2, note15: 0.7, note16: 0.3 } },
+  { input: { tempo: 0.8, style: 0.5, key: 0.4, mood: 0.7, complexity: 0.8, phrase: 0.5 }, output: { note1: 0.7, note2: 0.3, note3: 0.9, note4: 0.1, note5: 0.4, note6: 0.8, note7: 0.2, note8: 0.6, note9: 0.8, note10: 0.2, note11: 0.5, note12: 0.9, note13: 0.1, note14: 0.7, note15: 0.3, note16: 0.8 } },
   
-  // Ambient styles - more ethereal
-  { input: { tempo: 0.3, style: 0.7, key: 0.6, mood: 0.3, complexity: 0.5 }, output: { note1: 0.5, note2: 0.1, note3: 0.3, note4: 0.7, note5: 0.2, note6: 0.8, note7: 0.4, note8: 0.6, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.5 } },
-  { input: { tempo: 0.4, style: 0.7, key: 0.8, mood: 0.4, complexity: 0.6 }, output: { note1: 0.2, note2: 0.6, note3: 0.4, note4: 0.8, note5: 0.1, note6: 0.5, note7: 0.9, note8: 0.3, note9: 0.7, note10: 0.2, note11: 0.8, note12: 0.4 } },
+  // Ambient styles - ethereal and spacious
+  { input: { tempo: 0.3, style: 0.7, key: 0.6, mood: 0.3, complexity: 0.5, phrase: 0.1 }, output: { note1: 0.5, note2: 0.1, note3: 0.3, note4: 0.7, note5: 0.2, note6: 0.8, note7: 0.4, note8: 0.6, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.5, note13: 0.7, note14: 0.2, note15: 0.6, note16: 0.4 } },
+  { input: { tempo: 0.4, style: 0.7, key: 0.8, mood: 0.4, complexity: 0.6, phrase: 0.3 }, output: { note1: 0.2, note2: 0.6, note3: 0.4, note4: 0.8, note5: 0.1, note6: 0.5, note7: 0.9, note8: 0.3, note9: 0.7, note10: 0.2, note11: 0.8, note12: 0.4, note13: 0.6, note14: 0.1, note15: 0.5, note16: 0.9 } },
   
-  // Pop styles - more catchy
-  { input: { tempo: 0.7, style: 0.9, key: 0.1, mood: 0.8, complexity: 0.6 }, output: { note1: 0.3, note2: 0.7, note3: 0.5, note4: 0.9, note5: 0.2, note6: 0.6, note7: 0.8, note8: 0.4, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.7 } },
-  { input: { tempo: 0.8, style: 0.9, key: 0.3, mood: 0.9, complexity: 0.7 }, output: { note1: 0.6, note2: 0.2, note3: 0.8, note4: 0.4, note5: 0.7, note6: 0.1, note7: 0.5, note8: 0.9, note9: 0.2, note10: 0.8, note11: 0.4, note12: 0.6 } },
+  // Pop styles - catchy and memorable
+  { input: { tempo: 0.7, style: 0.9, key: 0.1, mood: 0.8, complexity: 0.6, phrase: 0.2 }, output: { note1: 0.3, note2: 0.7, note3: 0.5, note4: 0.9, note5: 0.2, note6: 0.6, note7: 0.8, note8: 0.4, note9: 0.1, note10: 0.9, note11: 0.3, note12: 0.7, note13: 0.5, note14: 0.2, note15: 0.8, note16: 0.4 } },
+  { input: { tempo: 0.8, style: 0.9, key: 0.3, mood: 0.9, complexity: 0.7, phrase: 0.4 }, output: { note1: 0.6, note2: 0.2, note3: 0.8, note4: 0.4, note5: 0.7, note6: 0.1, note7: 0.5, note8: 0.9, note9: 0.2, note10: 0.8, note11: 0.4, note12: 0.6, note13: 0.3, note14: 0.9, note15: 0.1, note16: 0.7 } },
   
-  // Classical styles - more structured
-  { input: { tempo: 0.6, style: 0.2, key: 0.5, mood: 0.7, complexity: 0.9 }, output: { note1: 0.4, note2: 0.8, note3: 0.2, note4: 0.6, note5: 0.9, note6: 0.1, note7: 0.5, note8: 0.7, note9: 0.3, note10: 0.9, note11: 0.1, note12: 0.5 } },
-  { input: { tempo: 0.5, style: 0.2, key: 0.7, mood: 0.5, complexity: 0.8 }, output: { note1: 0.7, note2: 0.3, note3: 0.9, note4: 0.1, note5: 0.6, note6: 0.8, note7: 0.2, note8: 0.4, note9: 0.9, note10: 0.1, note11: 0.7, note12: 0.3 } },
+  // Classical styles - structured and harmonic
+  { input: { tempo: 0.6, style: 0.2, key: 0.5, mood: 0.7, complexity: 0.9, phrase: 0.1 }, output: { note1: 0.4, note2: 0.8, note3: 0.2, note4: 0.6, note5: 0.9, note6: 0.1, note7: 0.5, note8: 0.7, note9: 0.3, note10: 0.9, note11: 0.1, note12: 0.5, note13: 0.7, note14: 0.3, note15: 0.8, note16: 0.2 } },
+  { input: { tempo: 0.5, style: 0.2, key: 0.7, mood: 0.5, complexity: 0.8, phrase: 0.3 }, output: { note1: 0.7, note2: 0.3, note3: 0.9, note4: 0.1, note5: 0.6, note6: 0.8, note7: 0.2, note8: 0.4, note9: 0.9, note10: 0.1, note11: 0.7, note12: 0.3, note13: 0.5, note14: 0.8, note15: 0.2, note16: 0.6 } },
   
-  // Blues styles - more soulful
-  { input: { tempo: 0.6, style: 0.4, key: 0.3, mood: 0.6, complexity: 0.7 }, output: { note1: 0.5, note2: 0.1, note3: 0.7, note4: 0.3, note5: 0.9, note6: 0.2, note7: 0.6, note8: 0.4, note9: 0.8, note10: 0.1, note11: 0.5, note12: 0.7 } },
-  { input: { tempo: 0.7, style: 0.4, key: 0.5, mood: 0.8, complexity: 0.8 }, output: { note1: 0.2, note2: 0.8, note3: 0.4, note4: 0.6, note5: 0.1, note6: 0.9, note7: 0.3, note8: 0.7, note9: 0.5, note10: 0.2, note11: 0.8, note12: 0.4 } }
+  // Blues styles - soulful and expressive
+  { input: { tempo: 0.6, style: 0.4, key: 0.3, mood: 0.6, complexity: 0.7, phrase: 0.2 }, output: { note1: 0.5, note2: 0.1, note3: 0.7, note4: 0.3, note5: 0.9, note6: 0.2, note7: 0.6, note8: 0.4, note9: 0.8, note10: 0.1, note11: 0.5, note12: 0.7, note13: 0.3, note14: 0.9, note15: 0.2, note16: 0.6 } },
+  { input: { tempo: 0.7, style: 0.4, key: 0.5, mood: 0.8, complexity: 0.8, phrase: 0.4 }, output: { note1: 0.2, note2: 0.8, note3: 0.4, note4: 0.6, note5: 0.1, note6: 0.9, note7: 0.3, note8: 0.7, note9: 0.5, note10: 0.2, note11: 0.8, note12: 0.4, note13: 0.6, note14: 0.1, note15: 0.7, note16: 0.3 } },
+  
+  // Techno/Minimal styles - hypnotic and repetitive
+  { input: { tempo: 0.9, style: 0.0, key: 0.2, mood: 0.8, complexity: 0.6, phrase: 0.5 }, output: { note1: 0.3, note2: 0.7, note3: 0.3, note4: 0.7, note5: 0.3, note6: 0.7, note7: 0.3, note8: 0.7, note9: 0.3, note10: 0.7, note11: 0.3, note12: 0.7, note13: 0.3, note14: 0.7, note15: 0.3, note16: 0.7 } },
+  { input: { tempo: 0.8, style: 0.0, key: 0.4, mood: 0.7, complexity: 0.5, phrase: 0.3 }, output: { note1: 0.6, note2: 0.4, note3: 0.6, note4: 0.4, note5: 0.6, note6: 0.4, note7: 0.6, note8: 0.4, note9: 0.6, note10: 0.4, note11: 0.6, note12: 0.4, note13: 0.6, note14: 0.4, note15: 0.6, note16: 0.4 } }
 ];
 
-// Enhanced drum patterns
+// Enhanced drum patterns with sophisticated rhythms inspired by dittytoy
 const drumTrainingData = [
-  { input: { tempo: 0.5, style: 0.2, mood: 0.3 }, output: { kick: 0.8, snare: 0.6, hihat: 0.4, crash: 0.2 } },
-  { input: { tempo: 0.7, style: 0.5, mood: 0.7 }, output: { kick: 0.6, snare: 0.8, hihat: 0.7, crash: 0.3 } },
-  { input: { tempo: 0.3, style: 0.8, mood: 0.2 }, output: { kick: 0.4, snare: 0.3, hihat: 0.9, crash: 0.1 } },
-  { input: { tempo: 0.9, style: 0.1, mood: 0.9 }, output: { kick: 0.9, snare: 0.5, hihat: 0.3, crash: 0.6 } },
-  { input: { tempo: 0.6, style: 0.3, mood: 0.6 }, output: { kick: 0.7, snare: 0.4, hihat: 0.8, crash: 0.2 } },
-  { input: { tempo: 0.8, style: 0.7, mood: 0.8 }, output: { kick: 0.5, snare: 0.9, hihat: 0.6, crash: 0.4 } }
+  // Electronic/Techno patterns - four-on-floor with variations
+  { input: { tempo: 0.8, style: 0.1, mood: 0.9, complexity: 0.8, phrase: 0.1 }, output: { kick: 0.9, snare: 0.6, hihat: 0.7, crash: 0.2, openhat: 0.1, clap: 0.3 } },
+  { input: { tempo: 0.9, style: 0.1, mood: 0.7, complexity: 0.9, phrase: 0.3 }, output: { kick: 0.8, snare: 0.7, hihat: 0.8, crash: 0.3, openhat: 0.2, clap: 0.4 } },
+  { input: { tempo: 0.7, style: 0.1, mood: 0.5, complexity: 0.6, phrase: 0.5 }, output: { kick: 0.7, snare: 0.5, hihat: 0.6, crash: 0.1, openhat: 0.1, clap: 0.2 } },
+  
+  // Rock patterns - driving and aggressive
+  { input: { tempo: 0.9, style: 0.5, mood: 0.9, complexity: 0.7, phrase: 0.3 }, output: { kick: 0.9, snare: 0.8, hihat: 0.5, crash: 0.6, openhat: 0.3, clap: 0.1 } },
+  { input: { tempo: 0.8, style: 0.5, mood: 0.7, complexity: 0.8, phrase: 0.5 }, output: { kick: 0.8, snare: 0.9, hihat: 0.6, crash: 0.4, openhat: 0.2, clap: 0.2 } },
+  
+  // Jazz patterns - complex and syncopated
+  { input: { tempo: 0.6, style: 0.3, mood: 0.8, complexity: 0.9, phrase: 0.2 }, output: { kick: 0.4, snare: 0.6, hihat: 0.8, crash: 0.2, openhat: 0.4, clap: 0.1 } },
+  { input: { tempo: 0.5, style: 0.3, mood: 0.6, complexity: 0.8, phrase: 0.4 }, output: { kick: 0.3, snare: 0.7, hihat: 0.9, crash: 0.1, openhat: 0.5, clap: 0.1 } },
+  
+  // Ambient patterns - minimal and spacious
+  { input: { tempo: 0.3, style: 0.7, mood: 0.3, complexity: 0.5, phrase: 0.1 }, output: { kick: 0.2, snare: 0.3, hihat: 0.7, crash: 0.1, openhat: 0.6, clap: 0.1 } },
+  { input: { tempo: 0.4, style: 0.7, mood: 0.4, complexity: 0.6, phrase: 0.3 }, output: { kick: 0.3, snare: 0.4, hihat: 0.8, crash: 0.1, openhat: 0.7, clap: 0.1 } },
+  
+  // Pop patterns - steady and accessible
+  { input: { tempo: 0.7, style: 0.9, mood: 0.8, complexity: 0.6, phrase: 0.2 }, output: { kick: 0.7, snare: 0.6, hihat: 0.5, crash: 0.3, openhat: 0.2, clap: 0.3 } },
+  { input: { tempo: 0.8, style: 0.9, mood: 0.9, complexity: 0.7, phrase: 0.4 }, output: { kick: 0.8, snare: 0.7, hihat: 0.6, crash: 0.4, openhat: 0.3, clap: 0.4 } },
+  
+  // Classical patterns - structured and controlled
+  { input: { tempo: 0.6, style: 0.2, mood: 0.7, complexity: 0.9, phrase: 0.1 }, output: { kick: 0.5, snare: 0.5, hihat: 0.4, crash: 0.2, openhat: 0.2, clap: 0.1 } },
+  { input: { tempo: 0.5, style: 0.2, mood: 0.5, complexity: 0.8, phrase: 0.3 }, output: { kick: 0.4, snare: 0.6, hihat: 0.5, crash: 0.1, openhat: 0.3, clap: 0.1 } },
+  
+  // Blues patterns - soulful and groovy
+  { input: { tempo: 0.6, style: 0.4, mood: 0.6, complexity: 0.7, phrase: 0.2 }, output: { kick: 0.6, snare: 0.5, hihat: 0.6, crash: 0.2, openhat: 0.3, clap: 0.2 } },
+  { input: { tempo: 0.7, style: 0.4, mood: 0.8, complexity: 0.8, phrase: 0.4 }, output: { kick: 0.7, snare: 0.6, hihat: 0.7, crash: 0.3, openhat: 0.4, clap: 0.3 } },
+  
+  // Breakbeat patterns - complex and syncopated
+  { input: { tempo: 0.8, style: 0.6, mood: 0.8, complexity: 0.9, phrase: 0.3 }, output: { kick: 0.6, snare: 0.8, hihat: 0.9, crash: 0.4, openhat: 0.5, clap: 0.6 } },
+  { input: { tempo: 0.7, style: 0.6, mood: 0.7, complexity: 0.8, phrase: 0.5 }, output: { kick: 0.5, snare: 0.9, hihat: 0.8, crash: 0.3, openhat: 0.6, clap: 0.5 } }
+];
+
+// Bass training data for harmonic movement
+const bassTrainingData = [
+  // Root movement patterns
+  { input: { tempo: 0.7, style: 0.3, mood: 0.6, complexity: 0.7, phrase: 0.2 }, output: { root: 0.8, fifth: 0.2, octave: 0.1, passing: 0.1, chromatic: 0.1 } },
+  { input: { tempo: 0.8, style: 0.5, mood: 0.8, complexity: 0.8, phrase: 0.4 }, output: { root: 0.6, fifth: 0.3, octave: 0.2, passing: 0.2, chromatic: 0.2 } },
+  { input: { tempo: 0.6, style: 0.3, mood: 0.7, complexity: 0.9, phrase: 0.3 }, output: { root: 0.5, fifth: 0.4, octave: 0.3, passing: 0.3, chromatic: 0.3 } },
+  
+  // Walking bass patterns
+  { input: { tempo: 0.5, style: 0.3, mood: 0.6, complexity: 0.8, phrase: 0.2 }, output: { root: 0.4, fifth: 0.3, octave: 0.2, passing: 0.4, chromatic: 0.3 } },
+  { input: { tempo: 0.6, style: 0.4, mood: 0.8, complexity: 0.9, phrase: 0.4 }, output: { root: 0.3, fifth: 0.3, octave: 0.2, passing: 0.5, chromatic: 0.4 } },
+  
+  // Electronic bass patterns
+  { input: { tempo: 0.9, style: 0.1, mood: 0.9, complexity: 0.6, phrase: 0.3 }, output: { root: 0.9, fifth: 0.1, octave: 0.2, passing: 0.1, chromatic: 0.1 } },
+  { input: { tempo: 0.8, style: 0.1, mood: 0.7, complexity: 0.7, phrase: 0.5 }, output: { root: 0.8, fifth: 0.2, octave: 0.3, passing: 0.2, chromatic: 0.2 } }
 ];
 
 // Train the networks
 melodyNet.train(melodyTrainingData);
 drumNet.train(drumTrainingData);
+bassNet.train(bassTrainingData);
 
 export const generateMelody = (instructions, duration = 60) => {
   const { tempo, key, melodyStyle, chordProgression, mood, style } = instructions;
   const beatsPerSecond = tempo / 60;
   const totalBeats = duration * beatsPerSecond;
   
-  // Enhanced normalization for more variety
+  // Enhanced normalization with phrase awareness
   const normalizedTempo = Math.min(tempo / 200, 1);
   const normalizedStyle = style === 'electronic' ? 0.1 : 
                          style === 'jazz' ? 0.3 : 
@@ -71,7 +126,8 @@ export const generateMelody = (instructions, duration = 60) => {
                          style === 'ambient' ? 0.7 : 
                          style === 'pop' ? 0.9 : 
                          style === 'classical' ? 0.2 :
-                         style === 'blues' ? 0.4 : 0.5;
+                         style === 'blues' ? 0.4 : 
+                         style === 'techno' ? 0.0 : 0.5;
   const normalizedKey = key === 'C' ? 0.1 : key === 'G' ? 0.3 : key === 'F' ? 0.5 : 
                        key === 'D' ? 0.7 : key === 'A' ? 0.9 : 0.5;
   const normalizedMood = mood === 'energetic' ? 0.9 : 
@@ -84,17 +140,24 @@ export const generateMelody = (instructions, duration = 60) => {
     tempo, key, style, mood, complexity: normalizedComplexity
   });
   
-  // Enhanced chord progressions with more variety and realistic voicings
+  // Enhanced chord progressions with sophisticated voicings and extensions
   const chordNotes = {
-    'C': ['C3', 'E3', 'G3', 'C4', 'E4', 'G4', 'C5', 'E5', 'G5'],
-    'Am': ['A2', 'C3', 'E3', 'A3', 'C4', 'E4', 'A4', 'C5', 'E5'],
-    'F': ['F2', 'A2', 'C3', 'F3', 'A3', 'C4', 'F4', 'A4', 'C5'],
-    'G': ['G2', 'B2', 'D3', 'G3', 'B3', 'D4', 'G4', 'B4', 'D5'],
-    'D': ['D3', 'F#3', 'A3', 'D4', 'F#4', 'A4', 'D5', 'F#5', 'A5'],
-    'Em': ['E2', 'G2', 'B2', 'E3', 'G3', 'B3', 'E4', 'G4', 'B4'],
-    'Dm': ['D3', 'F3', 'A3', 'D4', 'F4', 'A4', 'D5', 'F5', 'A5'],
-    'Bb': ['Bb2', 'D3', 'F3', 'Bb3', 'D4', 'F4', 'Bb4', 'D5', 'F5'],
-    'Gm': ['G2', 'Bb2', 'D3', 'G3', 'Bb3', 'D4', 'G4', 'Bb4', 'D5']
+    'C': ['C3', 'E3', 'G3', 'C4', 'E4', 'G4', 'C5', 'E5', 'G5', 'B5', 'D6'],
+    'Am': ['A2', 'C3', 'E3', 'A3', 'C4', 'E4', 'A4', 'C5', 'E5', 'G5', 'B5'],
+    'F': ['F2', 'A2', 'C3', 'F3', 'A3', 'C4', 'F4', 'A4', 'C5', 'E5', 'G5'],
+    'G': ['G2', 'B2', 'D3', 'G3', 'B3', 'D4', 'G4', 'B4', 'D5', 'F#5', 'A5'],
+    'D': ['D3', 'F#3', 'A3', 'D4', 'F#4', 'A4', 'D5', 'F#5', 'A5', 'C#6', 'E6'],
+    'Em': ['E2', 'G2', 'B2', 'E3', 'G3', 'B3', 'E4', 'G4', 'B4', 'D5', 'F#5'],
+    'Dm': ['D3', 'F3', 'A3', 'D4', 'F4', 'A4', 'D5', 'F5', 'A5', 'C6', 'E6'],
+    'Bb': ['Bb2', 'D3', 'F3', 'Bb3', 'D4', 'F4', 'Bb4', 'D5', 'F5', 'A5', 'C6'],
+    'Gm': ['G2', 'Bb2', 'D3', 'G3', 'Bb3', 'D4', 'G4', 'Bb4', 'D5', 'F5', 'A5'],
+    // Add more sophisticated chords
+    'Cmaj7': ['C3', 'E3', 'G3', 'B3', 'C4', 'E4', 'G4', 'B4', 'C5', 'E5', 'G5'],
+    'Am7': ['A2', 'C3', 'E3', 'G3', 'A3', 'C4', 'E4', 'G4', 'A4', 'C5', 'E5'],
+    'Fmaj7': ['F2', 'A2', 'C3', 'E3', 'F3', 'A3', 'C4', 'E4', 'F4', 'A4', 'C5'],
+    'G7': ['G2', 'B2', 'D3', 'F3', 'G3', 'B3', 'D4', 'F4', 'G4', 'B4', 'D5'],
+    'Dm7': ['D3', 'F3', 'A3', 'C4', 'D4', 'F4', 'A4', 'C5', 'D5', 'F5', 'A5'],
+    'Em7': ['E2', 'G2', 'B2', 'D3', 'E3', 'G3', 'B3', 'D4', 'E4', 'G4', 'B4']
   };
   
   // Add passing tones and chromatic notes for more realistic melodies
@@ -127,13 +190,20 @@ export const generateMelody = (instructions, duration = 60) => {
     const notes = chordNotes[chord] || chordNotes['C'];
     const currentPhrase = phraseStructure[Math.floor(i / phraseLength)] || 'verse';
     
-    // Use neural network with mood, complexity and randomness
+    // Use neural network with phrase awareness and enhanced parameters
+    const normalizedPhrase = currentPhrase === 'intro' ? 0.1 : 
+                            currentPhrase === 'verse' ? 0.2 : 
+                            currentPhrase === 'pre-chorus' ? 0.3 : 
+                            currentPhrase === 'chorus' ? 0.4 : 
+                            currentPhrase === 'bridge' ? 0.5 : 0.6;
+    
     const prediction = melodyNet.run({
       tempo: normalizedTempo,
       style: normalizedStyle,
       key: normalizedKey,
       mood: normalizedMood,
-      complexity: normalizedComplexity
+      complexity: normalizedComplexity,
+      phrase: normalizedPhrase
     });
     
     // Create more complex note patterns (16 notes for more variety)
@@ -233,19 +303,29 @@ export const generateMelody = (instructions, duration = 60) => {
       
       velocity = Math.min(1, Math.max(0.2, velocity));
       
-      // Add note characteristics optimized for Dittytoy
+      // Add advanced note characteristics optimized for Dittytoy
       const noteData = {
         note: finalNote,
         duration: rhythmPattern[patternIndex],
         time: (i * beatsPerChord + beat) / beatsPerSecond,
         velocity: velocity,
-        // Dittytoy-specific characteristics
+        // Dittytoy-specific characteristics with advanced features
         attack: 0.01 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.05),
         release: 0.2 + (prediction[`note${(patternIndex % 8) + 1}`] * 0.4),
-        // Add expression and dynamics
+        // Advanced expression and dynamics
         expression: currentIntensity,
-        // Simplified for Dittytoy compatibility
-        legato: beat % 2 === 0 && patternIndex % 2 === 0 ? 0.8 : 0.3
+        // Voice leading and tension
+        tension: Math.abs(prediction[`note${(patternIndex % 8) + 1}`] - 0.5) * 2,
+        // Harmonic function
+        harmonicFunction: currentPhrase === 'chorus' ? 'tonic' : 
+                         currentPhrase === 'verse' ? 'subdominant' : 'dominant',
+        // Dittytoy-compatible legato and articulation
+        legato: beat % 2 === 0 && patternIndex % 2 === 0 ? 0.8 : 0.3,
+        // Advanced articulation
+        articulation: style === 'jazz' ? 'staccato' : 
+                     style === 'classical' ? 'legato' : 'normal',
+        // Micro-timing for human feel
+        microTiming: (Math.random() - 0.5) * 0.02
       };
       
       melody.push(noteData);
@@ -267,15 +347,21 @@ export const generateDrumPattern = (instructions, duration = 60) => {
     tempo, drumPattern, style, mood
   });
   
-  // Normalize inputs for neural network
+  // Enhanced normalization for drum patterns
   const normalizedTempo = Math.min(tempo / 200, 1);
   const normalizedStyle = drumPattern === 'four-on-floor' ? 0.2 : 
                          drumPattern === 'breakbeat' ? 0.5 : 
-                         drumPattern === 'minimal' ? 0.8 : 0.5;
+                         drumPattern === 'minimal' ? 0.8 : 
+                         style === 'electronic' ? 0.1 :
+                         style === 'rock' ? 0.5 :
+                         style === 'jazz' ? 0.3 :
+                         style === 'ambient' ? 0.7 :
+                         style === 'pop' ? 0.9 : 0.5;
   const normalizedMood = mood === 'energetic' ? 0.9 : 
                         mood === 'melancholic' ? 0.2 : 
                         mood === 'uplifting' ? 0.8 : 
                         mood === 'calm' ? 0.3 : 0.5;
+  const normalizedComplexity = Math.random() * 0.4 + 0.6;
   
   const drums = [];
   
@@ -299,36 +385,66 @@ export const generateDrumPattern = (instructions, duration = 60) => {
         'outro': 0.3
       }[phraseType] || 0.6;
     
-    // Use neural network to determine drum hits
+    // Use enhanced neural network to determine drum hits
+    const normalizedPhrase = phraseType === 'intro' ? 0.1 : 
+                            phraseType === 'verse' ? 0.2 : 
+                            phraseType === 'pre-chorus' ? 0.3 : 
+                            phraseType === 'chorus' ? 0.4 : 
+                            phraseType === 'bridge' ? 0.5 : 0.6;
+    
     const prediction = drumNet.run({
       tempo: normalizedTempo,
       style: normalizedStyle,
-      mood: normalizedMood
+      mood: normalizedMood,
+      complexity: normalizedComplexity,
+      phrase: normalizedPhrase
     });
     
-    // Apply neural network predictions with style-specific logic
-    let kickThreshold, snareThreshold, hihatThreshold;
+    // Apply enhanced neural network predictions with sophisticated style-specific logic
+    let kickThreshold, snareThreshold, hihatThreshold, crashThreshold, openhatThreshold, clapThreshold;
     
-    if (style === 'electronic') {
-      kickThreshold = prediction.kick * 0.8;
-      snareThreshold = prediction.snare * 0.7;
-      hihatThreshold = prediction.hihat * 0.6;
+    if (style === 'electronic' || style === 'techno') {
+      kickThreshold = prediction.kick * 0.9;
+      snareThreshold = prediction.snare * 0.6;
+      hihatThreshold = prediction.hihat * 0.7;
+      crashThreshold = prediction.crash * 0.2;
+      openhatThreshold = prediction.openhat * 0.1;
+      clapThreshold = prediction.clap * 0.3;
     } else if (style === 'rock') {
       kickThreshold = prediction.kick * 0.9;
       snareThreshold = prediction.snare * 0.8;
       hihatThreshold = prediction.hihat * 0.5;
+      crashThreshold = prediction.crash * 0.6;
+      openhatThreshold = prediction.openhat * 0.3;
+      clapThreshold = prediction.clap * 0.1;
     } else if (style === 'jazz') {
       kickThreshold = prediction.kick * 0.4;
       snareThreshold = prediction.snare * 0.6;
       hihatThreshold = prediction.hihat * 0.8;
+      crashThreshold = prediction.crash * 0.2;
+      openhatThreshold = prediction.openhat * 0.4;
+      clapThreshold = prediction.clap * 0.1;
     } else if (style === 'ambient') {
       kickThreshold = prediction.kick * 0.2;
       snareThreshold = prediction.snare * 0.3;
       hihatThreshold = prediction.hihat * 0.7;
+      crashThreshold = prediction.crash * 0.1;
+      openhatThreshold = prediction.openhat * 0.6;
+      clapThreshold = prediction.clap * 0.1;
+    } else if (style === 'pop') {
+      kickThreshold = prediction.kick * 0.7;
+      snareThreshold = prediction.snare * 0.6;
+      hihatThreshold = prediction.hihat * 0.5;
+      crashThreshold = prediction.crash * 0.3;
+      openhatThreshold = prediction.openhat * 0.2;
+      clapThreshold = prediction.clap * 0.3;
     } else {
       kickThreshold = prediction.kick * 0.7;
       snareThreshold = prediction.snare * 0.6;
       hihatThreshold = prediction.hihat * 0.4;
+      crashThreshold = prediction.crash * 0.2;
+      openhatThreshold = prediction.openhat * 0.2;
+      clapThreshold = prediction.clap * 0.2;
     }
     
     // More sophisticated pattern-based logic
@@ -405,18 +521,41 @@ export const generateDrumPattern = (instructions, duration = 60) => {
       });
     }
     
-    // Add crash cymbal with phrase awareness
-    if (beatInMeasure === 0 && phraseType === 'chorus' && Math.random() < 0.4) {
+    // Add crash cymbal with enhanced phrase awareness
+    if (crashThreshold > 0.3) {
+      const crashVelocity = isAccent ? Math.min(crashThreshold * 1.3, 1) : Math.min(crashThreshold, 0.8);
+      if (beatInMeasure === 0 && phraseType === 'chorus' && Math.random() < 0.4) {
+        drums.push({
+          instrument: 'crash',
+          time: beat / beatsPerSecond,
+          velocity: crashVelocity
+        });
+      } else if (beatInMeasure === 0 && Math.random() < 0.1) {
+        drums.push({
+          instrument: 'crash',
+          time: beat / beatsPerSecond,
+          velocity: crashVelocity * 0.8
+        });
+      }
+    }
+    
+    // Add open hi-hat with sophisticated patterns
+    if (openhatThreshold > 0.2 && Math.random() < 0.3) {
+      const openhatVelocity = isAccent ? Math.min(openhatThreshold * 1.2, 0.9) : Math.min(openhatThreshold, 0.7);
       drums.push({
-        instrument: 'crash',
+        instrument: 'openhat',
         time: beat / beatsPerSecond,
-        velocity: 0.8 + Math.random() * 0.2
+        velocity: openhatVelocity
       });
-    } else if (beatInMeasure === 0 && Math.random() < 0.1) {
+    }
+    
+    // Add clap with style-specific patterns
+    if (clapThreshold > 0.2 && (style === 'electronic' || style === 'pop') && Math.random() < 0.4) {
+      const clapVelocity = isAccent ? Math.min(clapThreshold * 1.2, 0.9) : Math.min(clapThreshold, 0.7);
       drums.push({
-        instrument: 'crash',
+        instrument: 'clap',
         time: beat / beatsPerSecond,
-        velocity: 0.6 + Math.random() * 0.3
+        velocity: clapVelocity
       });
     }
   }
@@ -434,34 +573,95 @@ export const generateBassLine = (instructions, duration = 60) => {
     tempo, chordProgression, style, mood
   });
   
-  // Enhanced bass notes with more chord options
+  // Enhanced bass notes with sophisticated chord options and inversions
   const bassNotes = {
-    'C': 'C2',
-    'Am': 'A2',
-    'F': 'F2',
-    'G': 'G2',
-    'D': 'D2',
-    'Em': 'E2',
-    'Dm': 'D2',
-    'Bb': 'Bb2',
-    'Gm': 'G2'
+    'C': ['C2', 'E2', 'G2', 'C3'],
+    'Am': ['A2', 'C3', 'E3', 'A3'],
+    'F': ['F2', 'A2', 'C3', 'F3'],
+    'G': ['G2', 'B2', 'D3', 'G3'],
+    'D': ['D2', 'F#2', 'A2', 'D3'],
+    'Em': ['E2', 'G2', 'B2', 'E3'],
+    'Dm': ['D2', 'F2', 'A2', 'D3'],
+    'Bb': ['Bb2', 'D3', 'F3', 'Bb3'],
+    'Gm': ['G2', 'Bb2', 'D3', 'G3'],
+    // Add sophisticated chords
+    'Cmaj7': ['C2', 'E2', 'G2', 'B2', 'C3'],
+    'Am7': ['A2', 'C3', 'E3', 'G3', 'A3'],
+    'Fmaj7': ['F2', 'A2', 'C3', 'E3', 'F3'],
+    'G7': ['G2', 'B2', 'D3', 'F3', 'G3'],
+    'Dm7': ['D2', 'F2', 'A2', 'C3', 'D3'],
+    'Em7': ['E2', 'G2', 'B2', 'D3', 'E3']
   };
   
   // Add passing tones and chromatic bass notes
   const bassPassingTones = ['C#2', 'D#2', 'F#2', 'G#2', 'A#2'];
   
+  // Enhanced normalization for bass patterns
+  const normalizedTempo = Math.min(tempo / 200, 1);
+  const normalizedStyle = style === 'electronic' ? 0.1 : 
+                         style === 'jazz' ? 0.3 : 
+                         style === 'rock' ? 0.5 : 
+                         style === 'ambient' ? 0.7 : 
+                         style === 'pop' ? 0.9 : 
+                         style === 'classical' ? 0.2 :
+                         style === 'blues' ? 0.4 : 0.5;
+  const normalizedMood = mood === 'energetic' ? 0.9 : 
+                        mood === 'melancholic' ? 0.2 : 
+                        mood === 'uplifting' ? 0.8 : 
+                        mood === 'calm' ? 0.3 : 0.5;
+  const normalizedComplexity = Math.random() * 0.4 + 0.6;
+  
   const bass = [];
   const beatsPerChord = totalBeats / chordProgression.length;
   
+  // Create phrase structure for bass
+  const phraseStructure = ['intro', 'verse', 'pre-chorus', 'chorus', 'verse', 'pre-chorus', 'chorus', 'bridge', 'chorus', 'outro'];
+  const phraseLength = chordProgression.length / phraseStructure.length;
+  
   for (let i = 0; i < chordProgression.length; i++) {
     const chord = chordProgression[i];
-    const rootNote = bassNotes[chord] || bassNotes['C'];
+    const chordNotes = bassNotes[chord] || bassNotes['C'];
+    const currentPhrase = phraseStructure[Math.floor(i / phraseLength)] || 'verse';
+    
+    // Use bass neural network for harmonic movement
+    const normalizedPhrase = currentPhrase === 'intro' ? 0.1 : 
+                            currentPhrase === 'verse' ? 0.2 : 
+                            currentPhrase === 'pre-chorus' ? 0.3 : 
+                            currentPhrase === 'chorus' ? 0.4 : 
+                            currentPhrase === 'bridge' ? 0.5 : 0.6;
+    
+    const prediction = bassNet.run({
+      tempo: normalizedTempo,
+      style: normalizedStyle,
+      mood: normalizedMood,
+      complexity: normalizedComplexity,
+      phrase: normalizedPhrase
+    });
     
     // Create more interesting bass patterns
     const patternLength = Math.floor(beatsPerChord * 2); // More subdivisions
     
     for (let subdivision = 0; subdivision < patternLength; subdivision++) {
-      let note = rootNote;
+      // Use neural network predictions to determine note selection
+      let noteIndex = 0;
+      if (prediction.root > 0.5) {
+        noteIndex = 0; // Root note
+      } else if (prediction.fifth > 0.4) {
+        noteIndex = Math.min(2, chordNotes.length - 1); // Fifth
+      } else if (prediction.octave > 0.3) {
+        noteIndex = Math.min(3, chordNotes.length - 1); // Octave
+      } else if (prediction.passing > 0.3) {
+        // Use passing tone
+        const passingTone = bassPassingTones[Math.floor(Math.random() * bassPassingTones.length)];
+        noteIndex = -1; // Special case for passing tones
+      } else if (prediction.chromatic > 0.2) {
+        // Use chromatic movement
+        noteIndex = Math.floor(Math.random() * chordNotes.length);
+      } else {
+        noteIndex = Math.floor(Math.random() * chordNotes.length);
+      }
+      
+      let note = noteIndex === -1 ? bassPassingTones[Math.floor(Math.random() * bassPassingTones.length)] : chordNotes[noteIndex];
       let duration = '4n';
       let velocity = 0.8;
       
@@ -513,15 +713,119 @@ export const generateBassLine = (instructions, duration = 60) => {
         velocity *= 0.8;
       }
       
+      // Add advanced bass characteristics optimized for Dittytoy
       bass.push({
         note: note,
         duration: duration,
         time: (i * beatsPerChord + subdivision * 0.5) / beatsPerSecond,
-        velocity: Math.min(1, Math.max(0.3, velocity))
+        velocity: Math.min(1, Math.max(0.3, velocity)),
+        // Dittytoy-specific bass characteristics
+        attack: style === 'jazz' ? 0.01 : style === 'rock' ? 0.001 : 0.005,
+        release: style === 'ambient' ? 1.0 : style === 'jazz' ? 0.3 : 0.5,
+        // Advanced harmonic features
+        harmonicFunction: currentPhrase === 'chorus' ? 'tonic' : 
+                         currentPhrase === 'verse' ? 'subdominant' : 'dominant',
+        // Voice leading
+        voiceLeading: prediction.root > 0.5 ? 'root' : 
+                     prediction.fifth > 0.4 ? 'fifth' : 'chromatic',
+        // Dittytoy-compatible articulation
+        articulation: style === 'jazz' ? 'walking' : 
+                     style === 'electronic' ? 'staccato' : 'normal',
+        // Micro-timing for human feel
+        microTiming: (Math.random() - 0.5) * 0.01,
+        // Bass-specific effects
+        subBass: style === 'electronic' ? 0.8 : 0.3,
+        // Harmonic tension
+        tension: Math.abs(prediction.root - 0.5) * 2
       });
     }
   }
   
   console.log(`🎸 Generated ${bass.length} bass notes`);
   return bass;
+};
+
+// Advanced optimization function for Dittytoy compatibility
+export const optimizeForDittytoy = (patterns) => {
+  const optimized = {
+    melody: patterns.melody?.map(note => ({
+      ...note,
+      // Ensure Dittytoy-compatible note ranges
+      note: note.note.replace(/\d+/, (match) => {
+        const octave = parseInt(match);
+        return Math.max(2, Math.min(6, octave)); // Dittytoy-friendly range
+      }),
+      // Optimize timing for Dittytoy
+      time: Math.round(note.time * 1000) / 1000, // Round to millisecond precision
+      // Ensure valid velocity range
+      velocity: Math.max(0.1, Math.min(1.0, note.velocity)),
+      // Dittytoy-specific optimizations
+      attack: Math.max(0.001, Math.min(0.1, note.attack || 0.01)),
+      release: Math.max(0.1, Math.min(2.0, note.release || 0.5))
+    })),
+    
+    drums: patterns.drums?.map(drum => ({
+      ...drum,
+      // Optimize timing for Dittytoy
+      time: Math.round(drum.time * 1000) / 1000,
+      // Ensure valid velocity range
+      velocity: Math.max(0.1, Math.min(1.0, drum.velocity)),
+      // Dittytoy-compatible instrument mapping
+      instrument: drum.instrument === 'openhat' ? 'ohat' : 
+                 drum.instrument === 'clap' ? 'clhat' : drum.instrument
+    })),
+    
+    bass: patterns.bass?.map(note => ({
+      ...note,
+      // Ensure Dittytoy-compatible bass note ranges
+      note: note.note.replace(/\d+/, (match) => {
+        const octave = parseInt(match);
+        return Math.max(1, Math.min(4, octave)); // Bass range for Dittytoy
+      }),
+      // Optimize timing for Dittytoy
+      time: Math.round(note.time * 1000) / 1000,
+      // Ensure valid velocity range
+      velocity: Math.max(0.1, Math.min(1.0, note.velocity)),
+      // Dittytoy-specific bass optimizations
+      attack: Math.max(0.001, Math.min(0.05, note.attack || 0.005)),
+      release: Math.max(0.1, Math.min(1.5, note.release || 0.5))
+    }))
+  };
+  
+  console.log('🎛️ Optimized patterns for Dittytoy compatibility');
+  return optimized;
+};
+
+// Enhanced pattern generation with advanced musical features
+export const generateAdvancedPatterns = (instructions, duration = 60) => {
+  console.log('🎼 Generating advanced musical patterns with enhanced AI...');
+  
+  const patterns = {
+    melody: generateMelody(instructions, duration),
+    drums: generateDrumPattern(instructions, duration),
+    bass: generateBassLine(instructions, duration)
+  };
+  
+  // Apply advanced optimizations
+  const optimizedPatterns = optimizeForDittytoy(patterns);
+  
+  // Add metadata for advanced features
+  optimizedPatterns.metadata = {
+    style: instructions.style,
+    mood: instructions.mood,
+    tempo: instructions.tempo,
+    key: instructions.key,
+    duration: duration,
+    complexity: Math.random() * 0.4 + 0.6,
+    // Advanced musical features
+    harmonicComplexity: instructions.style === 'jazz' ? 0.9 : 
+                       instructions.style === 'classical' ? 0.8 : 0.6,
+    rhythmicComplexity: instructions.style === 'jazz' ? 0.8 : 
+                       instructions.style === 'electronic' ? 0.7 : 0.5,
+    melodicComplexity: instructions.style === 'classical' ? 0.9 : 
+                      instructions.style === 'jazz' ? 0.8 : 0.6
+  };
+  
+  console.log('🎼 Generated advanced patterns with enhanced musical features');
+  return optimizedPatterns;
 };

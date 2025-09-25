@@ -71,9 +71,28 @@ const Dashboard = () => {
     navigate("/studio");
   };
 
-  const handlePlayTrack = (track) => {
-    // Navigate to player with track data
-    navigate("/player", { state: { track } });
+  const handlePlayTrack = async (track) => {
+    try {
+      console.log("🎵 Playing track from dashboard:", track.title);
+
+      // Navigate to MusicPlayer with track data
+      navigate("/player", {
+        state: {
+          track: track,
+          patterns: track.patterns,
+          instructions: track.patterns?.instructions || {
+            tempo: track.tempo || 120,
+            key: "C",
+            style: track.style || "electronic",
+            mood: "energetic",
+            duration: track.duration || 60,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error playing track:", error);
+      alert("Error playing track. Please try again.");
+    }
   };
 
   const handleDeleteTrack = async (trackId, cloudinaryPublicId) => {
@@ -102,12 +121,21 @@ const Dashboard = () => {
     window.location.reload();
   };
 
-  const handleDownloadTrack = (track) => {
+  const handleDownloadTrack = async (track) => {
+    if (track.isSilentExport) {
+      alert(
+        "This track was saved as data only and cannot be downloaded as audio. Use the Studio to generate and download audio files."
+      );
+      return;
+    }
+
     if (track.cloudinaryUrl) {
       // Download from Cloudinary URL
       const link = document.createElement("a");
       link.href = track.cloudinaryUrl;
-      link.download = `${track.title || "untitled"}.webm`;
+      link.download = `${track.title || "untitled"}.${
+        track.fileFormat || "webm"
+      }`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -175,6 +203,9 @@ const Dashboard = () => {
                     <span className="track-date">
                       {formatDate(track.createdAt)}
                     </span>
+                    {track.isSilentExport && (
+                      <span className="track-type">📝 Data Only</span>
+                    )}
                   </div>
                 </div>
                 <div className="track-actions">

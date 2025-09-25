@@ -28,6 +28,8 @@ const MusicPlayer = ({
   const location = useLocation();
   const navigate = useNavigate();
   const track = location.state?.track;
+  const trackPatterns = location.state?.patterns;
+  const trackInstructions = location.state?.instructions;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -38,7 +40,7 @@ const MusicPlayer = ({
   const [volume, setVolume] = useState(0.7);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [waveformData, setWaveformData] = useState([]);
-  const [patterns, setPatterns] = useState(propPatterns);
+  const [patterns, setPatterns] = useState(propPatterns || trackPatterns);
   const [isShuffled, setIsShuffled] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
   const { currentUser } = useAuth();
@@ -46,8 +48,19 @@ const MusicPlayer = ({
   const animationRef = useRef(null);
   const progressIntervalRef = useRef(null);
 
-  // If patterns are passed as props, use them; otherwise use state
-  const currentPatterns = propPatterns || patterns;
+  // If patterns are passed as props, use them; otherwise use state or track patterns
+  const currentPatterns = propPatterns || patterns || trackPatterns;
+
+  useEffect(() => {
+    // Initialize Dittytoy when component mounts
+    dittytoyService.initialize().catch(console.error);
+
+    // Cleanup function to stop playback when leaving the page
+    return () => {
+      console.log("🎵 MusicPlayer: Cleaning up - stopping playback");
+      dittytoyService.stop();
+    };
+  }, []);
 
   useEffect(() => {
     // Generate simple waveform visualization data and calculate duration
@@ -55,7 +68,7 @@ const MusicPlayer = ({
       const data = Array.from({ length: 100 }, () => Math.random() * 100);
       setWaveformData(data);
 
-      // Calculate actual duration from patterns
+      // Calculate actual duration from patterns or use track duration
       let maxTime = 0;
 
       if (currentPatterns.melody) {
@@ -84,7 +97,7 @@ const MusicPlayer = ({
       }
 
       // Add some padding and ensure minimum duration
-      const actualDuration = Math.max(maxTime + 2, 60); // At least 1 minute
+      const actualDuration = Math.max(maxTime + 2, track?.duration || 60); // Use track duration if available
       setDuration(actualDuration);
 
       console.log(
@@ -93,7 +106,7 @@ const MusicPlayer = ({
         )}:${(actualDuration % 60).toString().padStart(2, "0")})`
       );
     }
-  }, [currentPatterns]);
+  }, [currentPatterns, track]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -334,19 +347,30 @@ const MusicPlayer = ({
       setIsExporting(true);
       setShowExportDropdown(false);
 
-      // Use the new recording functionality from Dittytoy service
-      const savedTrack = await dittytoyService.playMusicWithRecording(
+      console.log("🎵 Starting export from MusicPlayer...", { format });
+
+      // Use the export track functionality from Dittytoy service
+      const savedTrack = await dittytoyService.exportTrack(
         currentPatterns,
         currentPatterns.instructions,
-        currentUser.uid
+        currentUser.uid,
+        track?.title ||
+          track?.name ||
+          `Exported Track - ${new Date().toLocaleDateString()}`
       );
 
-      if (savedTrack) {
+      if (savedTrack && dittytoyService.recordedAudio) {
+        // Download the recorded audio
+        dittytoyService.downloadTrack(
+          savedTrack,
+          `${track?.title || track?.name || "exported-track"}.${format}`,
+          format
+        );
         alert(
-          `Track exported and saved successfully! Title: ${savedTrack.title}`
+          `Track exported and downloaded successfully! Format: ${format.toUpperCase()}`
         );
       } else {
-        alert("Track exported but failed to save. Please try again.");
+        alert("Track exported but failed to download. Please try again.");
       }
     } catch (error) {
       console.error("Export failed:", error);
@@ -387,7 +411,10 @@ const MusicPlayer = ({
             </div>
             <div className="track-details-header">
               <h3 className="track-title">
-                {currentPatterns.instructions?.style || "AI Generated Track"}
+                {track?.title ||
+                  track?.name ||
+                  currentPatterns.instructions?.style ||
+                  "AI Generated Track"}
               </h3>
               <p className="track-artist">Chordara AI</p>
             </div>
@@ -495,7 +522,7 @@ const MusicPlayer = ({
                 disabled={isExporting}
               >
                 <DownloadIcon className="icon" />
-                {isExporting ? "Exporting..." : "Export"}
+                {isExporting ? "Downloading..." : "Download"}
               </button>
 
               {showExportDropdown && (
@@ -505,21 +532,21 @@ const MusicPlayer = ({
                     className="export-option"
                   >
                     <DownloadIcon className="icon-small" />
-                    Export as MP3
+                    Download as MP3
                   </button>
                   <button
                     onClick={() => handleExport("wav")}
                     className="export-option"
                   >
                     <DownloadIcon className="icon-small" />
-                    Export as WAV
+                    Download as WAV
                   </button>
                   <button
                     onClick={() => handleExport("ogg")}
                     className="export-option"
                   >
                     <DownloadIcon className="icon-small" />
-                    Export as OGG
+                    Download as OGG
                   </button>
                 </div>
               )}
@@ -532,17 +559,26 @@ const MusicPlayer = ({
           <h4>Track Details</h4>
           <div className="track-details">
             <span>
-              <strong>Style:</strong> {currentPatterns.instructions?.style}
+              <strong>Style:</strong>{" "}
+              {track?.style || currentPatterns.instructions?.style}
             </span>
             <span>
-              <strong>Tempo:</strong> {currentPatterns.instructions?.tempo} BPM
+              <strong>Tempo:</strong>{" "}
+              {track?.tempo || currentPatterns.instructions?.tempo} BPM
             </span>
             <span>
-              <strong>Key:</strong> {currentPatterns.instructions?.key}
+              <strong>Key:</strong> {currentPatterns.instructions?.key || "C"}
             </span>
             <span>
-              <strong>Mood:</strong> {currentPatterns.instructions?.mood}
+              <strong>Mood:</strong>{" "}
+              {currentPatterns.instructions?.mood || "energetic"}
             </span>
+            {track?.createdAt && (
+              <span>
+                <strong>Created:</strong>{" "}
+                {new Date(track.createdAt.seconds * 1000).toLocaleDateString()}
+              </span>
+            )}
           </div>
         </div>
       </div>

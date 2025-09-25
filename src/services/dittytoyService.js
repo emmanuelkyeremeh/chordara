@@ -22,6 +22,7 @@ class DittytoyService {
     this.audioContext = null;
     this.mediaRecorder = null;
     this.recordedChunks = [];
+    this.currentDittyCode = null; // Store current DittyBoy code for restart
   }
 
   async initialize() {
@@ -43,7 +44,18 @@ class DittytoyService {
         throw new Error('Dittytoy library not properly imported');
       }
 
+      // Dispose any existing instance first
+      if (this.dittytoy) {
+        try {
+          this.dittytoy.stop();
+        } catch (e) {
+          // Ignore errors when stopping
+        }
+        this.dittytoy = null;
+      }
+
       try {
+        // Create new Dittytoy instance with error handling
         this.dittytoy = new Dittytoy();
         
         // Check if required methods exist
@@ -63,7 +75,15 @@ class DittytoyService {
         // Dittytoy instance methods verified
       } catch (constructorError) {
         console.error('🎵 Dittytoy constructor failed:', constructorError);
-        throw new Error(`Failed to create Dittytoy instance: ${constructorError.message}`);
+        // Try to recover by disposing and retrying once
+        this.dittytoy = null;
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+        
+        try {
+          this.dittytoy = new Dittytoy();
+        } catch (retryError) {
+          throw new Error(`Failed to create Dittytoy instance after retry: ${retryError.message}`);
+        }
       }
       
       // Set up event listeners
@@ -1722,6 +1742,7 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
     try {
       this.totalDuration = duration;
       this.currentTime = 0;
+      this.currentDittyCode = dittyCode; // Store the code for potential restart
       
       // Compiling Dittytoy code
       
@@ -1832,11 +1853,55 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
   }
 
   // Resume playback
-  resume() {
+  async resume() {
     if (this.dittytoy && this.isPlaying && this.isPaused) {
-      this.dittytoy.play();
-      this.isPaused = false;
-      console.log('🎵 Playback resumed');
+      try {
+        // Instead of resuming, restart the playback to avoid worker issues
+        console.log('🎵 Restarting playback instead of resuming to avoid worker errors');
+        this.stop();
+        
+        // Wait a moment for cleanup
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Reinitialize and play from the beginning
+        this.isInitialized = false;
+        await this.initialize();
+        
+        // Recompile and play the current code
+        if (this.currentDittyCode) {
+          await this.dittytoy.compile(this.currentDittyCode);
+          this.dittytoy.play();
+          this.isPlaying = true;
+          this.isPaused = false;
+          this.startProgressTracking();
+          console.log('🎵 Playback restarted successfully');
+        }
+      } catch (error) {
+        console.error('Error resuming playback:', error);
+        this.handlePlaybackError(error);
+      }
+    }
+  }
+
+  // Handle playback errors by reinitializing
+  async handlePlaybackError(error) {
+    console.warn('🎵 Playback error detected, attempting recovery:', error.message);
+    
+    try {
+      // Stop current playback
+      this.stop();
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Reinitialize DittyBoy
+      this.isInitialized = false;
+      await this.initialize();
+      
+      console.log('🎵 DittyBoy reinitialized successfully');
+    } catch (reinitError) {
+      console.error('🎵 Failed to reinitialize DittyBoy:', reinitError);
+      throw new Error('Playback failed and could not recover. Please refresh the page.');
     }
   }
 
@@ -1881,12 +1946,58 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
   // Start recording the current audio
   async startRecording() {
     try {
+      // Clean up any existing recording
+      if (this.mediaRecorder) {
+        try {
+          this.mediaRecorder.stop();
+        } catch (e) {
+          // Ignore errors
+        }
+        this.mediaRecorder = null;
+      }
+      
+      if (this.audioContext) {
+        try {
+          this.audioContext.close();
+        } catch (e) {
+          // Ignore errors
+        }
+        this.audioContext = null;
+      }
+      
+      // Create new audio context
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Wait for audio context to be ready
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      
       const destination = this.audioContext.createMediaStreamDestination();
+      
+      // Try different MIME types for better compatibility
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/wav'
+      ];
+      
+      let selectedMimeType = null;
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          break;
+        }
+      }
+      
+      if (!selectedMimeType) {
+        throw new Error('No supported audio MIME type found');
+      }
       
       // Create a MediaRecorder to record the audio
       this.mediaRecorder = new MediaRecorder(destination.stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: selectedMimeType
       });
       
       this.recordedChunks = [];
@@ -1897,12 +2008,19 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
         }
       };
       
-      this.mediaRecorder.start();
+      this.mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event.error);
+        this.isRecording = false;
+      };
+      
+      this.mediaRecorder.start(1000); // Record in 1-second chunks
       this.isRecording = true;
       
+      console.log('🎵 Recording started with MIME type:', selectedMimeType);
       return true;
     } catch (error) {
       console.error('Error starting recording:', error);
+      this.isRecording = false;
       return false;
     }
   }
@@ -1929,17 +2047,41 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
   // Save track to Cloudinary and Firestore
   async saveTrack(trackData, userId) {
     try {
-      if (!this.recordedAudio) {
+      let uploadResult = null;
+      
+      // Handle silent exports (no audio file)
+      if (trackData.isSilentExport) {
+        console.log('🎵 Saving silent export (no audio file)');
+      } else if (!this.recordedAudio) {
         throw new Error('No recorded audio to save');
+      } else {
+        // Determine file extension and MIME type based on recorded audio
+        const mimeType = this.recordedAudio.type || 'audio/webm';
+        let fileExtension = 'webm';
+        let cloudinaryResourceType = 'video'; // Cloudinary treats audio as video
+        
+        if (mimeType.includes('mp4')) {
+          fileExtension = 'mp4';
+        } else if (mimeType.includes('wav')) {
+          fileExtension = 'wav';
+        } else if (mimeType.includes('ogg')) {
+          fileExtension = 'ogg';
+        }
+
+        // Create file with proper extension
+        const audioFile = new File([this.recordedAudio], `${trackData.title || 'untitled'}.${fileExtension}`, {
+          type: mimeType
+        });
+
+        console.log('🎵 Uploading audio file:', {
+          size: audioFile.size,
+          type: audioFile.type,
+          name: audioFile.name
+        });
+
+        // Upload to Cloudinary with proper resource type
+        uploadResult = await uploadToCloudinary(audioFile, 'chordara/tracks');
       }
-
-      // Convert webm to mp3-like format
-      const audioFile = new File([this.recordedAudio], `${trackData.title || 'untitled'}.webm`, {
-        type: 'audio/webm'
-      });
-
-      // Upload to Cloudinary
-      const uploadResult = await uploadToCloudinary(audioFile, 'chordara/tracks');
       
       // Prepare track metadata
       const trackMetadata = {
@@ -1949,16 +2091,25 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
         tempo: trackData.tempo || 120,
         key: trackData.key || 'C',
         duration: trackData.duration || 60,
-        cloudinaryUrl: uploadResult.url,
-        cloudinaryPublicId: uploadResult.publicId,
         userId: userId,
         createdAt: new Date(),
         dittytoyCode: trackData.dittytoyCode || '',
-        patterns: trackData.patterns || {}
+        patterns: trackData.patterns || {},
+        isSilentExport: trackData.isSilentExport || false
       };
+
+      // Add Cloudinary data if available
+      if (uploadResult) {
+        trackMetadata.cloudinaryUrl = uploadResult.url;
+        trackMetadata.cloudinaryPublicId = uploadResult.publicId;
+        trackMetadata.fileFormat = uploadResult.format;
+        trackMetadata.fileSize = uploadResult.bytes;
+      }
 
       // Save to Firestore
       const docRef = await addDoc(collection(db, 'tracks'), trackMetadata);
+      
+      console.log('🎵 Track saved successfully:', docRef.id);
       
       return {
         id: docRef.id,
@@ -2014,21 +2165,44 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
     }
   }
 
-  // Download track as MP3
-  downloadTrack(trackData, filename) {
+  // Download track in specified format
+  downloadTrack(trackData, filename, format = 'webm') {
     if (!this.recordedAudio) {
       console.error('No recorded audio to download');
       return;
     }
 
-    const url = URL.createObjectURL(this.recordedAudio);
+    // Convert audio format if needed
+    let audioBlob = this.recordedAudio;
+    
+    // For now, we'll use the recorded format and let the browser handle conversion
+    // In a more advanced implementation, you could use Web Audio API to convert formats
+    const mimeType = this.getMimeTypeForFormat(format);
+    
+    // Create a new blob with the correct MIME type
+    if (this.recordedAudio.type !== mimeType) {
+      audioBlob = new Blob([this.recordedAudio], { type: mimeType });
+    }
+
+    const url = URL.createObjectURL(audioBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename || `${trackData.title || 'untitled'}.webm`;
+    a.download = filename || `${trackData.title || 'untitled'}.${format}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // Get MIME type for audio format
+  getMimeTypeForFormat(format) {
+    const mimeTypes = {
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'webm': 'audio/webm',
+      'ogg': 'audio/ogg'
+    };
+    return mimeTypes[format] || 'audio/webm';
   }
 
   // Play music with automatic recording and saving
@@ -2039,7 +2213,10 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
 
     try {
       // Start recording
-      await this.startRecording();
+      const recordingStarted = await this.startRecording();
+      if (!recordingStarted) {
+        throw new Error('Failed to start recording');
+      }
       
       // Generate and play music
       const dittyCode = this.generateDittytoyCode(patterns, instructions);
@@ -2075,16 +2252,170 @@ var hihat = synth.def((p, e, t, o) => (Math.random() - .5) * e.value, {release: 
     }
   }
 
-  // Cleanup
+  // Export track without playing (for download functionality)
+  async exportTrack(patterns, instructions, userId, trackTitle) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      console.log('🎵 Starting track export...');
+      
+      // Start recording
+      const recordingStarted = await this.startRecording();
+      if (!recordingStarted) {
+        throw new Error('Failed to start recording');
+      }
+      
+      // Generate and play music silently
+      const dittyCode = this.generateDittytoyCode(patterns, instructions);
+      await this.playDittytoyCode(dittyCode, instructions.duration || 60, patterns, instructions);
+      
+      // Wait for the duration of the track
+      const duration = (instructions.duration || 60) * 1000; // Convert to milliseconds
+      await new Promise(resolve => setTimeout(resolve, duration));
+      
+      // Stop recording
+      const recordedAudio = await this.stopRecording();
+      
+      if (recordedAudio) {
+        // Store the recorded audio in the instance for download
+        this.recordedAudio = recordedAudio;
+        
+        // Save track
+        const trackData = {
+          title: trackTitle || `Exported Track - ${new Date().toLocaleString()}`,
+          style: instructions.style || 'electronic',
+          tempo: instructions.tempo || 120,
+          key: instructions.key || 'C',
+          duration: instructions.duration || 60,
+          dittytoyCode: dittyCode,
+          patterns: patterns
+        };
+        
+        const savedTrack = await this.saveTrack(trackData, userId);
+        console.log('🎵 Track exported successfully:', savedTrack.id);
+        return savedTrack;
+      }
+      
+      throw new Error('No audio was recorded');
+    } catch (error) {
+      console.error('Error exporting track:', error);
+      throw error;
+    }
+  }
+
+  // Silent export - save track data without playing or recording audio
+  async silentExport(patterns, instructions, userId, trackTitle) {
+    try {
+      console.log('🎵 Starting silent export (no audio recording)...', { 
+        trackTitle, 
+        hasPatterns: !!patterns, 
+        hasInstructions: !!instructions,
+        userId 
+      });
+      
+      // Generate DittyBoy code
+      const dittyCode = this.generateDittytoyCode(patterns, instructions);
+      
+      // Clear any existing recorded audio for silent export
+      this.recordedAudio = null;
+      
+      // Use the provided track title or create a better fallback
+      const finalTitle = trackTitle && trackTitle.trim() ? trackTitle.trim() : `My Track - ${new Date().toLocaleDateString()}`;
+      
+      // Save track metadata only
+      const trackData = {
+        title: finalTitle,
+        style: instructions.style || 'electronic',
+        tempo: instructions.tempo || 120,
+        key: instructions.key || 'C',
+        duration: instructions.duration || 60,
+        dittytoyCode: dittyCode,
+        patterns: patterns,
+        isSilentExport: true // Flag to indicate this is a silent export
+      };
+      
+      console.log('🎵 Saving track data:', trackData);
+      
+      const savedTrack = await this.saveTrack(trackData, userId);
+      console.log('🎵 Silent export completed:', savedTrack.id, savedTrack.title);
+      return savedTrack;
+    } catch (error) {
+      console.error('Error in silent export:', error);
+      throw error;
+    }
+  }
+
+  // Cleanup and reset for new generation
   dispose() {
     this.stop();
+    
+    // Properly dispose of DittyBoy instance
     if (this.dittytoy) {
-      this.dittytoy = null;
+      try {
+        // Stop any ongoing playback
+        if (this.isPlaying) {
+          this.dittytoy.stop();
+        }
+        // Clear any workers or audio contexts
+        this.dittytoy = null;
+      } catch (error) {
+        console.warn('Error disposing DittyBoy instance:', error);
+      }
     }
+    
+    // Reset all state
     this.isInitialized = false;
+    this.isPlaying = false;
+    this.isPaused = false;
+    this.currentTime = 0;
+    this.totalDuration = 0;
     this.isRecording = false;
     this.recordedAudio = null;
     this.recordedChunks = [];
+    
+    // Clear audio context and media recorder
+    if (this.audioContext) {
+      try {
+        this.audioContext.close();
+      } catch (error) {
+        console.warn('Error closing audio context:', error);
+      }
+      this.audioContext = null;
+    }
+    
+    if (this.mediaRecorder) {
+      this.mediaRecorder = null;
+    }
+    
+    // Clear progress interval
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+    
+    console.log('🎵 DittyBoy service disposed and reset');
+  }
+
+  // Reset for new generation without full disposal
+  reset() {
+    this.stop();
+    this.isPlaying = false;
+    this.isPaused = false;
+    this.currentTime = 0;
+    this.totalDuration = 0;
+    this.isRecording = false;
+    this.recordedAudio = null;
+    this.recordedChunks = [];
+    
+    // Clear progress interval
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+    
+    console.log('🎵 DittyBoy service reset for new generation');
   }
 }
 

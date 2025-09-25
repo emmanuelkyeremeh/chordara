@@ -4,11 +4,45 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export const uploadToCloudinary = async (file, folder = 'chordara') => {
   try {
+    // Validate file
+    if (!file) {
+      throw new Error('No file provided for upload');
+    }
+
+    // Check file size (limit to 100MB)
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    if (file.size > maxSize) {
+      throw new Error(`File too large: ${file.size} bytes. Maximum allowed: ${maxSize} bytes`);
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
     formData.append('folder', folder);
-    formData.append('resource_type', 'auto');
+    
+    // Determine resource type based on file type
+    let resourceType = 'auto';
+    if (file.type.startsWith('audio/')) {
+      resourceType = 'video'; // Cloudinary treats audio as video
+    } else if (file.type.startsWith('image/')) {
+      resourceType = 'image';
+    }
+
+    formData.append('resource_type', resourceType);
+
+    // Add quality settings for audio files
+    if (file.type.startsWith('audio/')) {
+      formData.append('quality', 'auto:low'); // Compress audio for smaller file size
+      // Note: format parameter removed as it's not allowed in upload preset
+    }
+
+    console.log('🎵 Uploading to Cloudinary:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      resourceType: resourceType,
+      folder: folder
+    });
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
@@ -19,10 +53,23 @@ export const uploadToCloudinary = async (file, folder = 'chordara') => {
     );
 
     if (!response.ok) {
-      throw new Error(`Cloudinary upload failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Cloudinary upload failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Cloudinary upload failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('🎵 Cloudinary upload successful:', {
+      publicId: data.public_id,
+      url: data.secure_url,
+      format: data.format,
+      bytes: data.bytes
+    });
+
     return {
       url: data.secure_url,
       publicId: data.public_id,
